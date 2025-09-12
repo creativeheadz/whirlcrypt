@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
+import { join } from 'path';
 import { config } from './config/config';
 import { FileManager } from './storage/fileManager';
 import {
@@ -35,6 +38,16 @@ app.use(cors({
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
 app.use(sanitizeInput);
+
+// Load OpenAPI spec
+const swaggerDocument = YAML.load(join(__dirname, '../../docs/openapi.yaml'));
+
+// API Documentation
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Whirlcrypt API Documentation',
+  customfavIcon: '/favicon.ico'
+}));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
