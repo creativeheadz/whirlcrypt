@@ -6,6 +6,9 @@ on:
     paths: 
       - 'docs/**'
       - 'README.md'
+      - '.github/workflows/docs.yml'
+      - 'frontend/public/assets/**'
+      - 'whirlcrypt-high-resolution-logo-transparent*.png'
   workflow_dispatch:
 
 permissions:
