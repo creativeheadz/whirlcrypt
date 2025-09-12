@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whirlcrypt API Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8fafc;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        .header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+        }
+        .section {
+            background: white;
+            margin: 2rem 0;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            color: #2d3748;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+        .endpoint {
+            background: #f7fafc;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+        .method {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin-right: 0.5rem;
+        }
+        .method.get { background: #48bb78; color: white; }
+        .method.post { background: #ed8936; color: white; }
+        .method.put { background: #4299e1; color: white; }
+        .method.delete { background: #f56565; color: white; }
+        code {
+            background: #edf2f7;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        .nav {
+            position: sticky;
+            top: 2rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        .nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .nav li {
+            margin: 0.5rem 0;
+        }
+        .nav a {
+            text-decoration: none;
+            color: #667eea;
+            font-weight: 500;
+        }
+        .nav a:hover {
+            color: #5a67d8;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            color: #5a67d8;
+        }
+    </style>
+</head>
+<body>
+    <a href="./" class="back-link">← Back to Documentation Home</a>
+    
+    <div class="header">
+        <h1>🌀 Whirlcrypt API Documentation</h1>
+        <p>Complete API reference for secure file sharing with RFC 8188 encryption</p>
+    </div>
+
+    <nav class="nav">
+        <h3>Quick Navigation</h3>
+        <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#upload">Upload Endpoints</a></li>
+            <li><a href="#download">Download Endpoints</a></li>
+            <li><a href="#admin">Admin Endpoints</a></li>
+            <li><a href="#health">Health Check</a></li>
+            <li><a href="#rate-limits">Rate Limits</a></li>
+            <li><a href="#errors">Error Handling</a></li>
+        </ul>
+    </nav>
+
+    <div class="section" id="overview">
+        <h2>🔗 Overview</h2>
+        <p><strong>Base URL:</strong></p>
+        <pre><code>http://localhost:3001/api  # Development
+https://your-domain.com/api  # Production</code></pre>
+        
+        <p><strong>Authentication:</strong></p>
+        <ul>
+            <li>Most endpoints are public but rate-limited</li>
+            <li>Download endpoints require encryption key in header</li>
+            <li>Admin endpoints have no authentication (add auth for production!)</li>
+        </ul>
+    </div>
+
+    <div class="section" id="upload">
+        <h2>📤 Upload Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /upload</h3>
+            <p>Upload an encrypted file with metadata. Rate limited to 10 uploads per 15 minutes per IP.</p>
+            
+            <p><strong>Request Body (multipart/form-data):</strong></p>
+            <ul>
+                <li><code>file</code> - The encrypted file to upload</li>
+                <li><code>key</code> - 32-character hex-encoded encryption key</li>
+                <li><code>salt</code> - 32-character hex-encoded salt</li>
+                <li><code>retentionHours</code> - Optional retention period (default: 24, max: 168)</li>
+            </ul>
+
+            <p><strong>Response (201):</strong></p>
+            <pre><code>{
+  "id": "uuid-string",
+  "downloadUrl": "/api/download/uuid-string",
+  "expiresAt": "2025-09-13T10:00:00.000Z"
+}</code></pre>
+
+            <p><strong>Error Responses:</strong></p>
+            <ul>
+                <li><code>400</code> - Bad request (missing file, invalid params)</li>
+                <li><code>413</code> - File too large (>100MB default)</li>
+                <li><code>429</code> - Rate limit exceeded</li>
+                <li><code>500</code> - Upload failed</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="section" id="download">
+        <h2>📥 Download Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /download/{id}</h3>
+            <p>Download and decrypt a file using the provided encryption key.</p>
+            
+            <p><strong>Headers:</strong></p>
+            <pre><code>x-encryption-key: 32-character-hex-key</code></pre>
+            
+            <p><strong>Alternative Query Parameter:</strong></p>
+            <pre><code>GET /download/{id}?key=hex-encoded-key</code></pre>
+
+            <p><strong>Response (200):</strong></p>
+            <ul>
+                <li><strong>Content-Type:</strong> Original file MIME type</li>
+                <li><strong>Content-Disposition:</strong> <code>attachment; filename="original-name.ext"</code></li>
+                <li><strong>Body:</strong> Binary file data (decrypted)</li>
+            </ul>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /download/{id}/info</h3>
+            <p>Get file metadata without downloading the actual file.</p>
+            
+            <p><strong>Response (200):</strong></p>
+            <pre><code>{
+  "filename": "document.pdf",
+  "size": 1048576,
+  "contentType": "application/pdf",
+  "uploadDate": "2025-09-12T10:00:00.000Z",
+  "expiresAt": "2025-09-13T10:00:00.000Z",
+  "downloadCount": 3
+}</code></pre>
+        </div>
+    </div>
+
+    <div class="section" id="admin">
+        <h2>⚙️ Admin Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /admin/stats</h3>
+            <p>Retrieve current storage statistics and configuration.</p>
+            
+            <p><strong>Response (200):</strong></p>
+            <pre><code>{
+  "totalFiles": 150,
+  "totalSize": 524288000,
+  "expiredFiles": 12,
+  "config": {
+    "maxFileSize": 104857600,
+    "defaultRetentionHours": 24,
+    "maxRetentionHours": 168,
+    "allowedExtensions": null
+  }
+}</code></pre>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /admin/cleanup</h3>
+            <p>Manually trigger cleanup of expired files.</p>
+            
+            <p><strong>Response (200):</strong></p>
+            <pre><code>{
+  "message": "Cleaned up 12 expired files",
+  "cleanedCount": 12
+}</code></pre>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /admin/config</h3>
+            <p>Get current server configuration.</p>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method put">PUT</span> /admin/config</h3>
+            <p>Update server configuration (runtime only).</p>
+            
+            <p><strong>Request Body:</strong></p>
+            <pre><code>{
+  "defaultRetentionHours": 48,
+  "maxRetentionHours": 336,
+  "maxFileSize": 209715200
+}</code></pre>
+        </div>
+    </div>
+
+    <div class="section" id="health">
+        <h2>🏥 Health Check</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /health</h3>
+            <p>Check service status and version.</p>
+            
+            <p><strong>Response (200):</strong></p>
+            <pre><code>{
+  "status": "ok",
+  "timestamp": "2025-09-12T10:00:00.000Z",
+  "version": "1.0.0"
+}</code></pre>
+        </div>
+    </div>
+
+    <div class="section" id="rate-limits">
+        <h2>📊 Rate Limits</h2>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+            <thead>
+                <tr style="background: #f7fafc;">
+                    <th style="padding: 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Endpoint</th>
+                    <th style="padding: 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Limit</th>
+                    <th style="padding: 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Window</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;"><code>POST /upload</code></td>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">10 requests</td>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">15 minutes</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">All other endpoints</td>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">100 requests</td>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">15 minutes</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem;">Download endpoints</td>
+                    <td style="padding: 0.75rem;">No limit</td>
+                    <td style="padding: 0.75rem;">-</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section" id="errors">
+        <h2>🐛 Error Handling</h2>
+        
+        <p>All error responses follow this format:</p>
+        <pre><code>{
+  "error": "Human-readable error message"
+}</code></pre>
+
+        <p><strong>Common HTTP Status Codes:</strong></p>
+        <ul>
+            <li><code>200</code> - Success</li>
+            <li><code>201</code> - Created (upload success)</li>
+            <li><code>400</code> - Bad Request (invalid input)</li>
+            <li><code>404</code> - Not Found (file expired/missing)</li>
+            <li><code>413</code> - File Too Large</li>
+            <li><code>429</code> - Rate Limit Exceeded</li>
+            <li><code>500</code> - Internal Server Error</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🚀 Getting Started</h2>
+        <p>Ready to start using the Whirlcrypt API? Check out:</p>
+        <ul>
+            <li><a href="./openapi.yaml" target="_blank">📄 OpenAPI Specification</a> - For code generation</li>
+            <li><a href="https://editor.swagger.io/?url=https://creativeheadz.github.io/whirlcrypt/openapi.yaml" target="_blank">🧪 Interactive Testing</a> - Try the API live</li>
+            <li><a href="https://github.com/creativeheadz/whirlcrypt" target="_blank">📂 Source Code</a> - Complete implementation</li>
+        </ul>
+    </div>
+
+    <footer style="text-align: center; margin-top: 3rem; padding: 2rem; color: #718096;">
+        <p>Built with ❤️ using RFC 8188 encryption standards</p>
+    </footer>
+</body>
+</html>

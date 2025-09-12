@@ -99,7 +99,7 @@ jobs:
               </p>
               
               <div class="links">
-                <a href="./API.md" class="link-card">
+                <a href="./api.html" class="link-card">
                   <div class="link-title">📖 Complete API Reference</div>
                   <div class="link-desc">Detailed documentation with examples and code samples</div>
                 </a>
