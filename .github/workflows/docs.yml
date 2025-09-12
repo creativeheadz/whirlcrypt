@@ -38,7 +38,10 @@ jobs:
           # Copy main documentation files
           cp -r docs/* _site/ 2>/dev/null || true
           cp README.md _site/ 2>/dev/null || true
-          cp whirlcrypt-high-resolution-logo-transparent.png _site/assets/logo.png 2>/dev/null || true
+          
+          # Ensure assets directory exists and copy updated logo
+          mkdir -p _site/assets
+          cp frontend/public/assets/logo.png _site/assets/logo.png 2>/dev/null || cp whirlcrypt-high-resolution-logo-transparent.png _site/assets/logo.png
           
           # Create beautiful index.html
           cat > _site/index.html << 'EOF'
@@ -79,7 +82,7 @@ jobs:
                 border-radius: 16px;
                 border: 1px solid rgba(255, 122, 0, 0.2); 
                 text-decoration: none; 
-                color: white;
+                color: #111827;
                 transition: all 0.3s ease;
                 display: block;
                 backdrop-filter: blur(10px);
@@ -97,9 +100,10 @@ jobs:
                 color: #ff9500;
               }
               .link-desc { 
-                opacity: 0.9; 
+                opacity: 0.8; 
                 font-size: 1rem; 
                 line-height: 1.5;
+                color: #374151;
               }
             </style>
           </head>
