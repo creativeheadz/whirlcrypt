@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Upload as UploadIcon, Settings, Github } from 'lucide-react'
+import { Upload as UploadIcon, Settings, Github } from 'lucide-react'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -10,23 +10,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 shadow-lg">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <Link to="/" className="flex items-center space-x-2">
-              <Shield className="h-8 w-8 text-primary-600" />
-              <h1 className="text-xl font-bold text-gray-900">Whirlcrypt</h1>
+            <Link to="/" className="flex items-center space-x-3">
+              <img 
+                src="/assets/logo.png" 
+                alt="Whirlcrypt Logo" 
+                className="h-10 w-10 object-contain"
+              />
+              <h1 className="text-xl font-bold text-white">Whirlcrypt</h1>
             </Link>
             
             <nav className="flex items-center space-x-4">
               <Link
                 to="/"
-                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   location.pathname === '/'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-orange-500/30 text-orange-300 backdrop-blur-sm border border-orange-400/30 shadow-lg'
+                    : 'text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm'
                 }`}
               >
                 <UploadIcon className="h-4 w-4" />
@@ -35,10 +39,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               
               <Link
                 to="/admin"
-                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   location.pathname === '/admin'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-orange-500/30 text-orange-300 backdrop-blur-sm border border-orange-400/30 shadow-lg'
+                    : 'text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm'
                 }`}
               >
                 <Settings className="h-4 w-4" />
@@ -49,7 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 href="https://github.com/creativeheadz/whirlcrypt"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-orange-400 transition-colors duration-200 p-2 rounded-lg hover:bg-white/10"
               >
                 <Github className="h-5 w-5" />
               </a>
@@ -60,17 +64,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main Content */}
       <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
+        <div className="bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl p-8">
+          {children}
+        </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white">
+      <footer className="border-t border-white/10 bg-black/20 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
+            <div className="flex items-center space-x-4 text-sm text-gray-300">
               <span>© {new Date().getFullYear()} Whirlcrypt</span>
               <span className="flex items-center space-x-1">
-                <Shield className="h-3 w-3" />
+                <img 
+                  src="/assets/logo.png" 
+                  alt="Whirlcrypt" 
+                  className="h-4 w-4 object-contain"
+                />
                 <span>RFC 8188 Encrypted</span>
               </span>
             </div>

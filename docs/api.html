@@ -14,7 +14,8 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
-            background: #f8fafc;
+            background: linear-gradient(135deg, #111827 0%, #1f2937 50%, #000000 100%);
+            color: #ffffff;
             display: flex;
             flex-direction: column;
             min-height: 100vh;
@@ -26,9 +27,12 @@
             text-align: center;
             margin-bottom: 3rem;
             padding: 2rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #ff7a00 0%, #ff9500 100%);
             color: white;
-            border-radius: 10px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 122, 0, 0.3);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
         }
         .header h1 {
             margin: 0;
@@ -39,23 +43,27 @@
             opacity: 0.9;
         }
         .section {
-            background: white;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(20px);
             margin: 2rem 0;
             padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .section h2 {
-            color: #2d3748;
-            border-bottom: 2px solid #667eea;
+            color: #ffffff;
+            border-bottom: 2px solid #ff7a00;
             padding-bottom: 0.5rem;
         }
         .endpoint {
-            background: #f7fafc;
+            background: rgba(255, 122, 0, 0.1);
+            backdrop-filter: blur(10px);
             padding: 1rem;
             margin: 1rem 0;
-            border-left: 4px solid #667eea;
-            border-radius: 4px;
+            border-left: 4px solid #ff7a00;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 122, 0, 0.2);
         }
         .method {
             display: inline-block;
@@ -90,10 +98,12 @@
         .nav {
             position: sticky;
             top: 2rem;
-            background: white;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
             padding: 1rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             margin-bottom: 2rem;
         }
         .nav ul {
@@ -106,21 +116,23 @@
         }
         .nav a {
             text-decoration: none;
-            color: #667eea;
+            color: #ff9500;
             font-weight: 500;
+            transition: color 0.2s ease;
         }
         .nav a:hover {
-            color: #5a67d8;
+            color: #ff7a00;
         }
         .back-link {
             display: inline-block;
             margin-bottom: 1rem;
-            color: #667eea;
+            color: #ff9500;
             text-decoration: none;
             font-weight: 500;
+            transition: color 0.2s ease;
         }
         .back-link:hover {
-            color: #5a67d8;
+            color: #ff7a00;
         }
     </style>
 </head>
@@ -129,7 +141,10 @@
         <a href="./" class="back-link">← Back to Documentation Home</a>
         
         <div class="header">
-        <h1>🌀 Whirlcrypt API Documentation</h1>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem;">
+            <img src="./assets/logo.png" alt="Whirlcrypt Logo" style="height: 60px; width: 60px; object-fit: contain;">
+            <h1 style="margin: 0; font-size: 2.5rem;">Whirlcrypt API Documentation</h1>
+        </div>
         <p>Complete API reference for secure file sharing with RFC 8188 encryption</p>
     </div>
 
@@ -357,7 +372,7 @@ https://your-domain.com/api  # Production</code></pre>
     </div>
     </div>
 
-    <footer style="text-align: center; margin-top: auto; padding: 2rem; color: #718096; border-top: 1px solid #e2e8f0; background: white;">
+    <footer style="text-align: center; margin-top: auto; padding: 2rem; color: #9ca3af; border-top: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(20px); border-radius: 16px 16px 0 0;">
         <p>Built with ❤️ using RFC 8188 encryption standards</p>
     </footer>
 </body>

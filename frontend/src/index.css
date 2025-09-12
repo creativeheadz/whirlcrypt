@@ -8,40 +8,53 @@
   }
   
   * {
-    @apply border-gray-200;
+    @apply border-white/10;
+  }
+  
+  body {
+    @apply bg-gray-900 text-white;
   }
 }
 
 @layer components {
   .btn {
-    @apply px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 backdrop-blur-sm;
   }
   
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+    @apply btn bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 focus:ring-orange-500 shadow-lg border border-orange-400/30;
   }
   
   .btn-secondary {
-    @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
+    @apply btn bg-white/10 text-gray-200 hover:bg-white/20 focus:ring-white/30 border border-white/20;
   }
   
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+    @apply btn bg-red-600/80 text-white hover:bg-red-700/80 focus:ring-red-500 border border-red-500/30;
   }
   
   .input {
-    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500;
+    @apply block w-full px-3 py-2 border border-white/20 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 bg-black/20 backdrop-blur-sm text-white;
   }
   
   .card {
-    @apply bg-white shadow-sm border border-gray-200 rounded-lg;
+    @apply bg-black/20 backdrop-blur-xl shadow-2xl border border-white/10 rounded-2xl;
   }
   
   .upload-zone {
-    @apply border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors;
+    @apply border-2 border-dashed border-white/30 rounded-xl p-8 text-center transition-all duration-300 cursor-pointer hover:border-orange-400/50 hover:bg-orange-500/5;
   }
   
   .upload-zone.dragover {
-    @apply border-primary-500 bg-primary-50;
+    @apply border-orange-400 bg-orange-500/10 backdrop-blur-sm;
+  }
+  
+  /* Glassmorphism utilities */
+  .glass {
+    @apply bg-black/20 backdrop-blur-xl border border-white/10;
+  }
+  
+  .glass-orange {
+    @apply bg-orange-500/10 backdrop-blur-xl border border-orange-400/30;
   }
 }

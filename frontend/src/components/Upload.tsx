@@ -154,10 +154,10 @@ const UploadPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-white mb-2">
           Secure File Sharing
         </h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">
+        <p className="text-gray-300 max-w-2xl mx-auto">
           Share files securely with end-to-end encryption. Files are encrypted in your browser 
           before upload using RFC 8188 standard.
         </p>
@@ -170,14 +170,14 @@ const UploadPage: React.FC = () => {
           className={`upload-zone ${isDragActive ? 'dragover' : ''}`}
         >
           <input {...getInputProps()} />
-          <UploadIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <UploadIcon className="mx-auto h-12 w-12 text-gray-300 mb-4" />
           
           {state.file ? (
             <div className="space-y-2">
               <div className="flex items-center justify-center space-x-2 text-sm">
-                <FileText className="h-4 w-4 text-gray-500" />
-                <span className="font-medium">{state.file.name}</span>
-                <span className="text-gray-500">({formatFileSize(state.file.size)})</span>
+                <FileText className="h-4 w-4 text-gray-400" />
+                <span className="font-medium text-white">{state.file.name}</span>
+                <span className="text-gray-400">({formatFileSize(state.file.size)})</span>
               </div>
               
               {!state.uploading && !state.shareUrl && (
@@ -192,10 +192,10 @@ const UploadPage: React.FC = () => {
             </div>
           ) : (
             <div>
-              <p className="text-lg font-medium text-gray-900 mb-2">
+              <p className="text-lg font-medium text-white mb-2">
                 {isDragActive ? 'Drop file here' : 'Choose file to upload'}
               </p>
-              <p className="text-gray-500 mb-4">
+              <p className="text-gray-300 mb-4">
                 Drag and drop a file here, or click to browse (max 100MB)
               </p>
               <button type="button" className="btn-primary">
@@ -207,8 +207,8 @@ const UploadPage: React.FC = () => {
 
         {/* Retention Settings */}
         {state.file && !state.shareUrl && (
-          <div className="mt-4 pt-4 border-t">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <label className="block text-sm font-medium text-gray-200 mb-2">
               <Clock className="h-4 w-4 inline mr-1" />
               File retention period
             </label>
@@ -233,13 +233,13 @@ const UploadPage: React.FC = () => {
         {/* Progress Bar */}
         {state.uploading && (
           <div className="mt-4">
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
+            <div className="flex justify-between text-sm text-gray-300 mb-1">
               <span>Encrypting and uploading...</span>
               <span>{Math.round(state.progress)}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-white/10 rounded-full h-2">
               <div
-                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${state.progress}%` }}
               />
             </div>
@@ -248,25 +248,25 @@ const UploadPage: React.FC = () => {
 
         {/* Error Message */}
         {state.error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+          <div className="mt-4 p-3 bg-red-500/20 border border-red-400/30 rounded-lg backdrop-blur-sm">
             <div className="flex items-center">
-              <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
-              <span className="text-red-700 text-sm">{state.error}</span>
+              <AlertCircle className="h-4 w-4 text-red-400 mr-2" />
+              <span className="text-red-200 text-sm">{state.error}</span>
             </div>
           </div>
         )}
 
         {/* Success & Share Link */}
         {state.shareUrl && (
-          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
+          <div className="mt-4 p-4 glass-orange rounded-lg">
             <div className="flex items-center mb-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500 mr-2" />
-              <span className="text-green-800 font-medium">File uploaded successfully!</span>
+              <CheckCircle2 className="h-5 w-5 text-orange-400 mr-2" />
+              <span className="text-white font-medium">File uploaded successfully!</span>
             </div>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-200 mb-1">
                   <Share2 className="h-4 w-4 inline mr-1" />
                   Share link (includes decryption key)
                 </label>
@@ -279,7 +279,7 @@ const UploadPage: React.FC = () => {
                   />
                   <button
                     onClick={handleCopyLink}
-                    className={`btn-secondary flex items-center ${copied ? 'bg-green-100 text-green-700' : ''}`}
+                    className={`btn-secondary flex items-center ${copied ? 'bg-green-500/20 text-green-300 border-green-400/30' : ''}`}
                   >
                     <Copy className="h-4 w-4 mr-1" />
                     {copied ? 'Copied!' : 'Copy'}
@@ -287,7 +287,7 @@ const UploadPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="text-xs text-gray-600 space-y-1">
+              <div className="text-xs text-gray-300 space-y-1">
                 <p>• Link expires in {state.retentionHours} hour{state.retentionHours !== 1 ? 's' : ''}</p>
                 <p>• Encryption keys are embedded in the URL fragment (not sent to server)</p>
                 <p>• Share this link securely - anyone with it can download the file</p>
@@ -299,20 +299,20 @@ const UploadPage: React.FC = () => {
 
       {/* Security Info */}
       <div className="card p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-          <Lock className="h-5 w-5 mr-2 text-primary-600" />
+        <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+          <Lock className="h-5 w-5 mr-2 text-orange-400" />
           Security Features
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
           <div className="space-y-2">
-            <p>• <strong>End-to-end encryption:</strong> Files encrypted in browser</p>
-            <p>• <strong>RFC 8188 standard:</strong> Industry-standard encryption</p>
-            <p>• <strong>Zero server access:</strong> Keys never sent to server</p>
+            <p>• <strong className="text-orange-300">End-to-end encryption:</strong> Files encrypted in browser</p>
+            <p>• <strong className="text-orange-300">RFC 8188 standard:</strong> Industry-standard encryption</p>
+            <p>• <strong className="text-orange-300">Zero server access:</strong> Keys never sent to server</p>
           </div>
           <div className="space-y-2">
-            <p>• <strong>Automatic expiration:</strong> Files auto-delete</p>
-            <p>• <strong>No tracking:</strong> No ads or user tracking</p>
-            <p>• <strong>Open source:</strong> Transparent security</p>
+            <p>• <strong className="text-orange-300">Automatic expiration:</strong> Files auto-delete</p>
+            <p>• <strong className="text-orange-300">No tracking:</strong> No ads or user tracking</p>
+            <p>• <strong className="text-orange-300">Open source:</strong> Transparent security</p>
           </div>
         </div>
       </div>
