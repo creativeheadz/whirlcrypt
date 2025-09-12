@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whirlcrypt API Documentation</title>
     <style>
+        html, body {
+            height: 100%;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
@@ -12,6 +15,12 @@
             margin: 0 auto;
             padding: 2rem;
             background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .content {
+            flex: 1;
         }
         .header {
             text-align: center;
@@ -116,9 +125,10 @@
     </style>
 </head>
 <body>
-    <a href="./" class="back-link">← Back to Documentation Home</a>
-    
-    <div class="header">
+    <div class="content">
+        <a href="./" class="back-link">← Back to Documentation Home</a>
+        
+        <div class="header">
         <h1>🌀 Whirlcrypt API Documentation</h1>
         <p>Complete API reference for secure file sharing with RFC 8188 encryption</p>
     </div>
@@ -345,8 +355,9 @@ https://your-domain.com/api  # Production</code></pre>
             <li><a href="https://github.com/creativeheadz/whirlcrypt" target="_blank">📂 Source Code</a> - Complete implementation</li>
         </ul>
     </div>
+    </div>
 
-    <footer style="text-align: center; margin-top: 3rem; padding: 2rem; color: #718096;">
+    <footer style="text-align: center; margin-top: auto; padding: 2rem; color: #718096; border-top: 1px solid #e2e8f0; background: white;">
         <p>Built with ❤️ using RFC 8188 encryption standards</p>
     </footer>
 </body>
