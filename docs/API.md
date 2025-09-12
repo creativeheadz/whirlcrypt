@@ -2,6 +2,8 @@
 
 Complete API reference for Whirlcrypt secure file sharing platform.
 
+> **Latest Update**: Fixed GitHub Pages deployment workflow
+
 ## 🔗 Base URL
 
 ```
