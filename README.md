@@ -1,8 +1,7 @@
 <div align="center">
   <img src="whirlcrypt-high-resolution-logo-transparent.png" alt="Whirlcrypt Logo" width="200" />
-  
-  # Whirlcrypt
-  ### Secure File Sharing with RFC 8188 Encryption
+ 
+### Secure File Sharing with RFC 8188 Encryption
   
   A secure file sharing application inspired by wormhole.app, built with end-to-end encryption using RFC 8188 standard.
   
