@@ -10,9 +10,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex flex-col">
       {/* Header */}
-      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 shadow-lg">
+      <header className="bg-white/30 backdrop-blur-xl border-b border-black/10 shadow-lg">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <Link to="/" className="flex items-center space-x-3">
@@ -21,7 +21,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 alt="Whirlcrypt Logo" 
                 className="h-10 w-10 object-contain"
               />
-              <h1 className="text-xl font-bold text-white">Whirlcrypt</h1>
+              <h1 className="text-xl font-bold text-gray-900">Whirlcrypt</h1>
             </Link>
             
             <nav className="flex items-center space-x-4">
@@ -29,8 +29,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to="/"
                 className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   location.pathname === '/'
-                    ? 'bg-orange-500/30 text-orange-300 backdrop-blur-sm border border-orange-400/30 shadow-lg'
-                    : 'text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm'
+                    ? 'bg-orange-500/20 text-orange-700 backdrop-blur-sm border border-orange-400/30 shadow-lg'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/20 backdrop-blur-sm'
                 }`}
               >
                 <UploadIcon className="h-4 w-4" />
@@ -41,8 +41,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to="/admin"
                 className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   location.pathname === '/admin'
-                    ? 'bg-orange-500/30 text-orange-300 backdrop-blur-sm border border-orange-400/30 shadow-lg'
-                    : 'text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm'
+                    ? 'bg-orange-500/20 text-orange-700 backdrop-blur-sm border border-orange-400/30 shadow-lg'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/20 backdrop-blur-sm'
                 }`}
               >
                 <Settings className="h-4 w-4" />
@@ -53,7 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 href="https://github.com/creativeheadz/whirlcrypt"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-orange-400 transition-colors duration-200 p-2 rounded-lg hover:bg-white/10"
+                className="text-gray-600 hover:text-orange-500 transition-colors duration-200 p-2 rounded-lg hover:bg-white/20"
               >
                 <Github className="h-5 w-5" />
               </a>
@@ -64,16 +64,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main Content */}
       <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl p-8">
+        <div className="bg-white/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 shadow-2xl p-8">
           {children}
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 bg-black/20 backdrop-blur-xl">
+      <footer className="border-t border-gray-200/50 bg-white/30 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4 text-sm text-gray-300">
+            <div className="flex items-center space-x-4 text-sm text-gray-700">
               <span>© {new Date().getFullYear()} Whirlcrypt</span>
               <span className="flex items-center space-x-1">
                 <img 
@@ -85,7 +85,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </span>
             </div>
             
-            <div className="flex items-center space-x-4 text-xs text-gray-400">
+            <div className="flex items-center space-x-4 text-xs text-gray-600">
               <span>End-to-end encrypted file sharing</span>
               <span>•</span>
               <span>No server-side decryption</span>
