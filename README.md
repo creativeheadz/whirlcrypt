@@ -1,14 +1,35 @@
-# Whirlcrypt 🌀 - Encrypted File Sharing
+<div align="center">
+  <img src="whirlcrypt-high-resolution-logo-transparent.png" alt="Whirlcrypt Logo" width="200" />
+  
+  # Whirlcrypt
+  ### Secure File Sharing with RFC 8188 Encryption
+  
+  A secure file sharing application inspired by wormhole.app, built with end-to-end encryption using RFC 8188 standard.
+  
+  [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-creativeheadz.github.io/whirlcrypt-orange)](https://creativeheadz.github.io/whirlcrypt/)
+  [![API Docs](https://img.shields.io/badge/📚_API_Docs-Interactive-blue)](https://creativeheadz.github.io/whirlcrypt/api.html)
+  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+</div>
 
-A secure file sharing application inspired by wormhole.app, built with end-to-end encryption using RFC 8188 standard.
+## ✨ Features
 
-## 🔒 Security Features
+- 🔒 **End-to-end encryption**: Files are encrypted in the browser before upload
+- 🛡️ **RFC 8188 compliance**: Uses industry-standard Encrypted Content-Encoding for HTTP
+- 🚫 **Zero server access**: Encryption keys never leave your browser
+- ⏰ **Automatic expiration**: Files are automatically deleted after retention period
+- 🔐 **No tracking**: No ads, analytics, or user tracking
+- 🎨 **Modern UI**: Beautiful glassmorphism design with responsive layout
+- 📱 **Mobile friendly**: Works seamlessly on all devices
+- 🚀 **Fast & lightweight**: Built with React + Vite for optimal performance
 
-- **End-to-end encryption**: Files are encrypted in the browser before upload
-- **RFC 8188 compliance**: Uses industry-standard Encrypted Content-Encoding for HTTP
-- **Zero server access**: Encryption keys never leave your browser
-- **Automatic expiration**: Files are automatically deleted after retention period
-- **No tracking**: No ads, analytics, or user tracking
+## 🖥️ Screenshots
+
+<div align="center">
+  <img src="https://via.placeholder.com/600x400/f8f9fa/6c757d?text=Upload+Interface" alt="Upload Interface" width="45%" />
+  <img src="https://via.placeholder.com/600x400/f8f9fa/6c757d?text=Admin+Panel" alt="Admin Panel" width="45%" />
+</div>
+
+> *Screenshots coming soon - the app features a beautiful white glassmorphism design*
 
 ## 🚀 Quick Start
 
@@ -97,19 +118,21 @@ RATE_LIMIT_MAX_REQUESTS=100
    npm start
    ```
 
-## 🔧 API Documentation
+## 📚 API Documentation
 
-### 📚 **Interactive API Docs**
-Access the full interactive Swagger/OpenAPI documentation:
+### 🌐 **Live Documentation**
+Beautiful, interactive API documentation with glassmorphism design:
 
-**🌐 Online Documentation**: https://creativeheadz.github.io/whirlcrypt/
+- **[📖 Complete API Reference](https://creativeheadz.github.io/whirlcrypt/api.html)** - Full documentation with examples
+- **[⚙️ OpenAPI Specification](https://creativeheadz.github.io/whirlcrypt/openapi.yaml)** - YAML spec for integration  
+- **[🚀 Interactive Explorer](https://editor.swagger.io/?url=https://creativeheadz.github.io/whirlcrypt/openapi.yaml)** - Try the API live
 
-**🔧 Development**: http://localhost:3001/api/docs
+### 🔧 **Development**
+- **Local API Docs**: http://localhost:3001/api/docs (Swagger UI)
+- **Production**: https://your-domain.com/api/docs
 
-**🚀 Production**: https://your-domain.com/api/docs
-
-### 📖 **Complete API Reference** 
-See [docs/API.md](docs/API.md) for detailed documentation with examples.
+### 📋 **Quick Reference**
+See [docs/API.md](docs/API.md) for detailed markdown documentation.
 
 ### 🚀 **Quick API Overview**
 
