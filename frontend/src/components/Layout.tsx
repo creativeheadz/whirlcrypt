@@ -46,7 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Link>
 
               <a
-                href="https://github.com"
+                href="https://github.com/creativeheadz/whirlcrypt"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -68,7 +68,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span>© 2024 Whirlcrypt</span>
+              <span>© {new Date().getFullYear()} Whirlcrypt</span>
               <span className="flex items-center space-x-1">
                 <Shield className="h-3 w-3" />
                 <span>RFC 8188 Encrypted</span>
