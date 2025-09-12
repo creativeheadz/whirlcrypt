@@ -35,11 +35,11 @@ jobs:
         run: |
           mkdir -p _site
           
-          # Copy main documentation
-          cp -r docs/* _site/
-          cp README.md _site/
+          # Copy main documentation files
+          cp -r docs/* _site/ 2>/dev/null || true
+          cp README.md _site/ 2>/dev/null || true
           
-          # Create index.html for docs
+          # Create beautiful index.html
           cat > _site/index.html << 'EOF'
           <!DOCTYPE html>
           <html lang="en">
@@ -60,15 +60,34 @@ jobs:
                 backdrop-filter: blur(10px);
               }
               .logo { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
-              .links { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 2rem; }
-              .link-card { 
-                background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 10px;
-                border: 1px solid rgba(255,255,255,0.2); text-decoration: none; color: white;
-                transition: transform 0.2s, background 0.2s;
+              .links { 
+                display: grid; 
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+                gap: 1rem; margin-top: 2rem; 
               }
-              .link-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.2); }
-              .link-title { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem; }
-              .link-desc { opacity: 0.9; font-size: 0.9rem; }
+              .link-card { 
+                background: rgba(255,255,255,0.1); 
+                padding: 1.5rem; 
+                border-radius: 10px;
+                border: 1px solid rgba(255,255,255,0.2); 
+                text-decoration: none; 
+                color: white;
+                transition: transform 0.2s, background 0.2s;
+                display: block;
+              }
+              .link-card:hover { 
+                transform: translateY(-5px); 
+                background: rgba(255,255,255,0.2); 
+              }
+              .link-title { 
+                font-size: 1.25rem; 
+                font-weight: bold; 
+                margin-bottom: 0.5rem; 
+              }
+              .link-desc { 
+                opacity: 0.9; 
+                font-size: 0.9rem; 
+              }
             </style>
           </head>
           <body>
@@ -80,14 +99,9 @@ jobs:
               </p>
               
               <div class="links">
-                <a href="./API.html" class="link-card">
+                <a href="./API.md" class="link-card">
                   <div class="link-title">📖 Complete API Reference</div>
                   <div class="link-desc">Detailed documentation with examples and code samples</div>
-                </a>
-                
-                <a href="./swagger/" class="link-card">
-                  <div class="link-title">🚀 Interactive API Explorer</div>
-                  <div class="link-desc">Try the API endpoints with Swagger UI</div>
                 </a>
                 
                 <a href="./openapi.yaml" class="link-card">
@@ -95,7 +109,12 @@ jobs:
                   <div class="link-desc">YAML specification for API integration</div>
                 </a>
                 
-                <a href="https://github.com/creativeheadz/whirlcrypt" class="link-card">
+                <a href="https://editor.swagger.io/?url=https://creativeheadz.github.io/whirlcrypt/openapi.yaml" class="link-card" target="_blank">
+                  <div class="link-title">🚀 Interactive API Explorer</div>
+                  <div class="link-desc">Try the API endpoints with Swagger Editor</div>
+                </a>
+                
+                <a href="https://github.com/creativeheadz/whirlcrypt" class="link-card" target="_blank">
                   <div class="link-title">📂 Source Code</div>
                   <div class="link-desc">View the complete source code on GitHub</div>
                 </a>
@@ -108,15 +127,6 @@ jobs:
           </body>
           </html>
           EOF
-          
-          # Convert markdown to HTML
-          npm install -g marked
-          marked README.md > _site/README.html
-          marked docs/API.md > _site/API.html
-          
-          # Setup Swagger UI for interactive docs
-          mkdir -p _site/swagger
-          npx swagger-ui-dist-cli -f docs/openapi.yaml -d _site/swagger
           
       - name: 📤 Upload artifact
         uses: actions/upload-pages-artifact@v3
