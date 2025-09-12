@@ -36,29 +36,19 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    try {
-      // Decrypt file data
-      const key = Buffer.from(keyHex, 'hex');
-      const decryptedData = RFC8188Crypto.decrypt(encryptedData, key);
+    // Increment download counter
+    await fileManager.incrementDownloadCount(id);
 
-      // Increment download counter
-      await fileManager.incrementDownloadCount(id);
+    // Set response headers for encrypted file
+    res.setHeader('Content-Disposition', `attachment; filename="${metadata.filename}"`);
+    res.setHeader('Content-Type', 'application/octet-stream'); // Always binary for encrypted data
+    res.setHeader('Content-Length', encryptedData.length.toString());
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
-      // Set response headers
-      res.setHeader('Content-Disposition', `attachment; filename="${metadata.filename}"`);
-      res.setHeader('Content-Type', metadata.contentType);
-      res.setHeader('Content-Length', decryptedData.length.toString());
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-
-      // Send decrypted file
-      res.send(decryptedData);
-
-    } catch (decryptionError) {
-      console.error('Decryption error:', decryptionError);
-      return res.status(400).json({ error: 'Invalid encryption key or corrupted file' });
-    }
+    // Send encrypted file (client will decrypt)
+    res.send(encryptedData);
 
   } catch (error) {
     console.error('Download error:', error);

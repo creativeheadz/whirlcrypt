@@ -40,6 +40,7 @@ const UploadPage: React.FC = () => {
     onDrop,
     multiple: false,
     maxSize: 100 * 1024 * 1024, // 100MB
+    disabled: state.file !== null || state.uploading, // Disable dropzone once file is selected or uploading
     onDropRejected: (rejectedFiles) => {
       const rejection = rejectedFiles[0]?.errors[0]
       let errorMsg = 'File rejected'
@@ -166,10 +167,10 @@ const UploadPage: React.FC = () => {
       {/* Upload Area */}
       <div className="card p-6">
         <div
-          {...getRootProps()}
-          className={`upload-zone ${isDragActive ? 'dragover' : ''}`}
+          {...(state.file ? {} : getRootProps())}
+          className={`upload-zone ${isDragActive ? 'dragover' : ''} ${state.file ? 'cursor-default' : 'cursor-pointer'}`}
         >
-          <input {...getInputProps()} />
+          {!state.file && <input {...getInputProps()} />}
           <UploadIcon className="mx-auto h-12 w-12 text-gray-500 mb-4" />
           
           {state.file ? (
@@ -180,15 +181,25 @@ const UploadPage: React.FC = () => {
                 <span className="text-gray-600">({formatFileSize(state.file.size)})</span>
               </div>
               
-              {!state.uploading && !state.shareUrl && (
-                <button
-                  onClick={handleUpload}
-                  className="btn-primary mt-4"
-                >
-                  <Lock className="h-4 w-4 mr-2" />
-                  Encrypt & Upload
-                </button>
-              )}
+              <div className="mt-4 flex gap-2 justify-center">
+                {!state.uploading && !state.shareUrl && (
+                  <button
+                    onClick={handleUpload}
+                    className="btn-primary"
+                  >
+                    <Lock className="h-4 w-4 mr-2" />
+                    Encrypt & Upload
+                  </button>
+                )}
+                {!state.uploading && !state.shareUrl && (
+                  <button
+                    onClick={() => setState(prev => ({ ...prev, file: null, error: null }))}
+                    className="btn-secondary"
+                  >
+                    Remove File
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <div>

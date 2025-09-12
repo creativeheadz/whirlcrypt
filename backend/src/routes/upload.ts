@@ -49,30 +49,18 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       });
     }
 
-    // Parse encryption parameters from client
+    // File is already encrypted client-side, just store it directly
+    // Parse encryption parameters for verification (but don't re-encrypt)
     const keyHex = req.body.key;
     const saltHex = req.body.salt;
-    const recordSize = req.body.recordSize ? parseInt(req.body.recordSize) : undefined;
 
     if (!keyHex || !saltHex) {
       return res.status(400).json({ error: 'Missing encryption parameters' });
     }
 
-    // Convert hex strings to buffers
-    const key = Buffer.from(keyHex, 'hex');
-    const salt = Buffer.from(saltHex, 'hex');
-
-    // Encrypt file data
-    const encryptedData = RFC8188Crypto.encrypt(
-      req.file.buffer, 
-      key, 
-      salt, 
-      recordSize
-    );
-
-    // Store encrypted file
+    // Store the already encrypted file data
     const metadata = await fileManager.storeFile(
-      encryptedData,
+      req.file.buffer,
       req.file.originalname,
       req.file.mimetype,
       retentionHours

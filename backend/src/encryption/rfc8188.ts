@@ -22,34 +22,34 @@ export class RFC8188Crypto {
   }
 
   /**
-   * HKDF key derivation as specified in RFC 8188
+   * HKDF key derivation as specified in RFC 5869
    */
   private static hkdf(salt: Buffer, ikm: Buffer, info: Buffer, length: number): Buffer {
-    const prk = createHash('sha256')
-      .update(Buffer.concat([salt, ikm]))
+    const { createHmac } = require('crypto');
+    
+    // Step 1: Extract
+    const prk = createHmac('sha256', salt)
+      .update(ikm)
       .digest();
 
-    const t = Buffer.alloc(0);
-    const okm = Buffer.alloc(length);
-    let offset = 0;
-    let counter = 1;
-
-    while (offset < length) {
-      const hmac = createHash('sha256');
-      if (t.length > 0) {
+    // Step 2: Expand
+    const n = Math.ceil(length / 32);
+    let t = Buffer.alloc(0);
+    const chunks: Buffer[] = [];
+    
+    for (let i = 1; i <= n; i++) {
+      const hmac = createHmac('sha256', prk);
+      if (i > 1) {
         hmac.update(t);
       }
       hmac.update(info);
-      hmac.update(Buffer.from([counter]));
+      hmac.update(Buffer.from([i]));
       
-      const currentT = hmac.digest();
-      const copyLength = Math.min(currentT.length, length - offset);
-      currentT.copy(okm, offset, 0, copyLength);
-      offset += copyLength;
-      counter++;
+      t = hmac.digest();
+      chunks.push(t);
     }
 
-    return okm;
+    return Buffer.concat(chunks).subarray(0, length);
   }
 
   /**
@@ -90,10 +90,13 @@ export class RFC8188Crypto {
     const nonceBase = this.deriveNonce(salt, key);
     
     // Create header
+    const recordSizeBuffer = Buffer.alloc(4);
+    recordSizeBuffer.writeUInt32BE(recordSize, 0);
+    
     const header = Buffer.concat([
       salt,
-      Buffer.from([0, 0, 0, recordSize >> 8, recordSize & 0xff]), // record size as 4-byte big-endian + 1 byte keyid length
-      Buffer.from([0]) // keyid (empty)
+      recordSizeBuffer, // record size as 4-byte big-endian
+      Buffer.from([0]) // keyid length (0)
     ]);
 
     const chunks: Buffer[] = [header];
@@ -134,10 +137,8 @@ export class RFC8188Crypto {
     }
 
     const salt = encryptedData.subarray(0, SALT_LENGTH);
-    const recordSizeBytes = encryptedData.subarray(SALT_LENGTH, SALT_LENGTH + 4);
     const keyIdLength = encryptedData.readUInt8(SALT_LENGTH + 4);
-    
-    const recordSize = recordSizeBytes.readUInt32BE(0);
+    const recordSize = encryptedData.readUInt32BE(SALT_LENGTH);
     const headerLength = SALT_LENGTH + 5 + keyIdLength;
     
     const contentKey = this.deriveKey(salt, key);
