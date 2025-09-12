@@ -1,0 +1,531 @@
+openapi: 3.0.3
+info:
+  title: Whirlcrypt API
+  description: |
+    🌀 **Whirlcrypt** - Secure file sharing with RFC 8188 encryption
+    
+    End-to-end encrypted file sharing platform that ensures your files are encrypted 
+    before they leave your browser. Built with security, privacy, and simplicity in mind.
+    
+    ## 🔐 Security Features
+    - RFC 8188 compliant encryption (AES-128-GCM)
+    - Zero server-side key access
+    - Automatic file expiration
+    - Rate limiting and security headers
+    
+    ## 🚀 Getting Started  
+    1. Upload files with client-side encryption
+    2. Share secure links with embedded keys (URL fragments)
+    3. Files automatically expire based on retention settings
+    
+    **Repository**: [github.com/creativeheadz/whirlcrypt](https://github.com/creativeheadz/whirlcrypt)
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  contact:
+    name: Whirlcrypt API Support
+    url: https://github.com/creativeheadz/whirlcrypt
+
+servers:
+  - url: http://localhost:3001/api
+    description: Development server
+  - url: https://your-domain.com/api  
+    description: Production server
+
+tags:
+  - name: upload
+    description: File upload operations
+  - name: download
+    description: File download operations  
+  - name: admin
+    description: Administrative operations
+  - name: health
+    description: Health check endpoints
+
+paths:
+  /upload:
+    post:
+      tags: [upload]
+      summary: Upload encrypted file
+      description: |
+        Upload a file with client-side encryption. The file should be encrypted 
+        using RFC 8188 before upload. Returns a unique file ID and download URL.
+        
+        **Rate Limited**: 10 uploads per 15 minutes per IP address.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, key, salt]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The encrypted file to upload
+                key:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{32}$'
+                  description: 32-character hex-encoded encryption key
+                  example: "a1b2c3d4e5f67890abcdef1234567890"
+                salt:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{32}$' 
+                  description: 32-character hex-encoded salt
+                  example: "1234567890abcdef1234567890abcdef"
+                retentionHours:
+                  type: integer
+                  minimum: 1
+                  maximum: 168
+                  default: 24
+                  description: File retention period in hours
+                  example: 48
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/FileTooLarge' 
+        '429':
+          $ref: '#/components/responses/RateLimit'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /download/{id}:
+    get:
+      tags: [download]
+      summary: Download encrypted file
+      description: |
+        Download and decrypt a file using the provided encryption key.
+        The key can be provided via header or query parameter.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique file identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        - name: key
+          in: query
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{32}$'
+          description: Hex-encoded encryption key (alternative to header)
+        - name: x-encryption-key
+          in: header
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{32}$'
+          description: Hex-encoded encryption key
+          example: "a1b2c3d4e5f67890abcdef1234567890"
+      responses:
+        '200':
+          description: File downloaded successfully
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 'attachment; filename="original-filename.ext"'
+            Content-Type:
+              schema:
+                type: string
+              description: Original file MIME type
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /download/{id}/info:
+    get:
+      tags: [download]
+      summary: Get file metadata
+      description: Get file information without downloading the actual file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique file identifier
+      responses:
+        '200':
+          description: File metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileInfo'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/stats:
+    get:
+      tags: [admin]
+      summary: Get storage statistics
+      description: Retrieve current storage statistics and server configuration
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageStats'
+
+  /admin/cleanup:
+    post:
+      tags: [admin]
+      summary: Manual cleanup
+      description: Manually trigger cleanup of expired files
+      responses:
+        '200':
+          description: Cleanup completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupResult'
+
+  /admin/config:
+    get:
+      tags: [admin]
+      summary: Get configuration
+      description: Get current server configuration settings
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerConfig'
+    
+    put:
+      tags: [admin]
+      summary: Update configuration
+      description: Update server configuration (runtime only, not persistent)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigUpdate'
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigUpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      description: Check service health status and version
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+
+components:
+  schemas:
+    UploadResponse:
+      type: object
+      required: [id, downloadUrl, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique file identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        downloadUrl:
+          type: string
+          description: Relative download URL
+          example: "/api/download/123e4567-e89b-12d3-a456-426614174000"
+        expiresAt:
+          type: string
+          format: date-time
+          description: File expiration timestamp (ISO 8601)
+          example: "2025-09-13T10:00:00.000Z"
+
+    FileInfo:
+      type: object
+      required: [filename, size, contentType, uploadDate, expiresAt, downloadCount]
+      properties:
+        filename:
+          type: string
+          description: Original filename
+          example: "document.pdf"
+        size:
+          type: integer
+          description: File size in bytes
+          example: 1048576
+        contentType:
+          type: string
+          description: Original MIME type
+          example: "application/pdf"
+        uploadDate:
+          type: string
+          format: date-time
+          description: Upload timestamp (ISO 8601)
+          example: "2025-09-12T10:00:00.000Z"
+        expiresAt:
+          type: string
+          format: date-time
+          description: Expiration timestamp (ISO 8601)
+          example: "2025-09-13T10:00:00.000Z"
+        downloadCount:
+          type: integer
+          description: Number of times downloaded
+          example: 3
+
+    StorageStats:
+      type: object
+      required: [totalFiles, totalSize, expiredFiles, config]
+      properties:
+        totalFiles:
+          type: integer
+          description: Total number of files stored
+          example: 150
+        totalSize:
+          type: integer
+          description: Total storage used in bytes
+          example: 524288000
+        expiredFiles:
+          type: integer
+          description: Number of expired files pending cleanup
+          example: 12
+        config:
+          $ref: '#/components/schemas/StorageConfig'
+
+    StorageConfig:
+      type: object
+      properties:
+        maxFileSize:
+          type: integer
+          description: Maximum file size in bytes
+          example: 104857600
+        defaultRetentionHours:
+          type: integer
+          example: 24
+        maxRetentionHours:
+          type: integer
+          example: 168
+        allowedExtensions:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Allowed file extensions (null = all allowed)
+
+    CleanupResult:
+      type: object
+      required: [message, cleanedCount]
+      properties:
+        message:
+          type: string
+          example: "Cleaned up 12 expired files"
+        cleanedCount:
+          type: integer
+          description: Number of files cleaned up
+          example: 12
+
+    ServerConfig:
+      type: object
+      required: [retention, rateLimiting, maxFileSize]
+      properties:
+        retention:
+          type: object
+          properties:
+            defaultRetentionHours:
+              type: integer
+              example: 24
+            maxRetentionHours:
+              type: integer 
+              example: 168
+            cleanupIntervalMinutes:
+              type: integer
+              example: 60
+            maxFileSize:
+              type: integer
+              example: 104857600
+            allowedExtensions:
+              type: array
+              items:
+                type: string
+              nullable: true
+        rateLimiting:
+          type: object
+          properties:
+            windowMs:
+              type: integer
+              description: Rate limit window in milliseconds
+              example: 900000
+            maxRequests:
+              type: integer
+              description: Maximum requests per window
+              example: 100
+        maxFileSize:
+          type: integer
+          example: 104857600
+
+    ConfigUpdate:
+      type: object
+      properties:
+        defaultRetentionHours:
+          type: integer
+          minimum: 1
+          maximum: 8760
+          example: 48
+        maxRetentionHours:
+          type: integer
+          minimum: 1
+          maximum: 8760
+          example: 336
+        maxFileSize:
+          type: integer
+          minimum: 1024
+          example: 209715200
+
+    ConfigUpdateResponse:
+      type: object
+      required: [message, retention]
+      properties:
+        message:
+          type: string
+          example: "Configuration updated"
+        retention:
+          type: object
+          properties:
+            defaultRetentionHours:
+              type: integer
+              example: 48
+            maxRetentionHours:
+              type: integer
+              example: 336
+            maxFileSize:
+              type: integer
+              example: 209715200
+
+    HealthCheck:
+      type: object
+      required: [status, timestamp, version]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+          example: "ok"
+        timestamp:
+          type: string
+          format: date-time
+          description: Current server timestamp (ISO 8601)
+          example: "2025-09-12T10:00:00.000Z"
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "File not found or expired"
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            missing-file:
+              summary: Missing file
+              value:
+                error: "No file uploaded"
+            invalid-key:
+              summary: Invalid encryption key
+              value:
+                error: "Missing encryption parameters"
+            invalid-retention:
+              summary: Invalid retention period
+              value:
+                error: "Retention period cannot exceed 168 hours"
+
+    NotFound:
+      description: Resource not found or expired
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "File not found or expired"
+
+    FileTooLarge:
+      description: File exceeds size limit
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "File too large"
+
+    RateLimit:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per window
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when window resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Too many requests, please try again later"
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal server error"
+
+  securitySchemes:
+    EncryptionKey:
+      type: apiKey
+      in: header
+      name: x-encryption-key
+      description: Hex-encoded AES encryption key for file decryption

@@ -97,21 +97,47 @@ RATE_LIMIT_MAX_REQUESTS=100
    npm start
    ```
 
-## 🔧 API Endpoints
+## 🔧 API Documentation
 
-### Upload
-- `POST /api/upload` - Upload encrypted file
-- `GET /api/health` - Health check
+### 📚 **Interactive API Docs**
+Access the full interactive Swagger/OpenAPI documentation:
 
-### Download
-- `GET /api/download/:id` - Download encrypted file
-- `GET /api/download/:id/info` - Get file metadata
+**🌐 Online Documentation**: https://creativeheadz.github.io/whirlcrypt/
 
-### Admin
-- `GET /api/admin/stats` - Get storage statistics
-- `POST /api/admin/cleanup` - Trigger cleanup
-- `GET /api/admin/config` - Get configuration
-- `PUT /api/admin/config` - Update configuration
+**🔧 Development**: http://localhost:3001/api/docs
+
+**🚀 Production**: https://your-domain.com/api/docs
+
+### 📖 **Complete API Reference** 
+See [docs/API.md](docs/API.md) for detailed documentation with examples.
+
+### 🚀 **Quick API Overview**
+
+**Upload**
+- `POST /api/upload` - Upload encrypted file with metadata
+- Rate limited: 10 uploads per 15 minutes per IP
+
+**Download**  
+- `GET /api/download/:id` - Download encrypted file (requires encryption key)
+- `GET /api/download/:id/info` - Get file metadata without downloading
+
+**Admin**
+- `GET /api/admin/stats` - Storage statistics and configuration
+- `POST /api/admin/cleanup` - Manual cleanup of expired files  
+- `GET /api/admin/config` - Current server configuration
+- `PUT /api/admin/config` - Update configuration (runtime only)
+
+**Health**
+- `GET /api/health` - Service health check and version info
+
+### 🔐 **Authentication**
+- Most endpoints are public but rate-limited
+- Download endpoints require encryption key (header: `x-encryption-key`)
+- Admin endpoints have no authentication (add auth for production!)
+
+### 📊 **Rate Limits**
+- Upload: 10 requests per 15 minutes per IP
+- Other endpoints: 100 requests per 15 minutes per IP
 
 ## 🛡️ Security Implementation
 

@@ -1,0 +1,126 @@
+name: 📚 Deploy API Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'docs/**'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🛒 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📝 Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: 🔨 Build Documentation Site
+        run: |
+          mkdir -p _site
+          
+          # Copy main documentation
+          cp -r docs/* _site/
+          cp README.md _site/
+          
+          # Create index.html for docs
+          cat > _site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Whirlcrypt API Documentation</title>
+            <style>
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                max-width: 1200px; margin: 0 auto; padding: 2rem;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh; color: white;
+              }
+              .container { 
+                background: rgba(255,255,255,0.1); 
+                border-radius: 15px; padding: 2rem; 
+                backdrop-filter: blur(10px);
+              }
+              .logo { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
+              .links { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 2rem; }
+              .link-card { 
+                background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 10px;
+                border: 1px solid rgba(255,255,255,0.2); text-decoration: none; color: white;
+                transition: transform 0.2s, background 0.2s;
+              }
+              .link-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.2); }
+              .link-title { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem; }
+              .link-desc { opacity: 0.9; font-size: 0.9rem; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="logo">🌀</div>
+              <h1 style="text-align: center; margin: 0;">Whirlcrypt API Documentation</h1>
+              <p style="text-align: center; opacity: 0.9; margin-bottom: 2rem;">
+                Secure file sharing with RFC 8188 encryption
+              </p>
+              
+              <div class="links">
+                <a href="./API.html" class="link-card">
+                  <div class="link-title">📖 Complete API Reference</div>
+                  <div class="link-desc">Detailed documentation with examples and code samples</div>
+                </a>
+                
+                <a href="./swagger/" class="link-card">
+                  <div class="link-title">🚀 Interactive API Explorer</div>
+                  <div class="link-desc">Try the API endpoints with Swagger UI</div>
+                </a>
+                
+                <a href="./openapi.yaml" class="link-card">
+                  <div class="link-title">⚙️ OpenAPI Specification</div>
+                  <div class="link-desc">YAML specification for API integration</div>
+                </a>
+                
+                <a href="https://github.com/creativeheadz/whirlcrypt" class="link-card">
+                  <div class="link-title">📂 Source Code</div>
+                  <div class="link-desc">View the complete source code on GitHub</div>
+                </a>
+              </div>
+              
+              <div style="text-align: center; margin-top: 2rem; opacity: 0.7; font-size: 0.9rem;">
+                Built with ❤️ using RFC 8188 encryption standards
+              </div>
+            </div>
+          </body>
+          </html>
+          EOF
+          
+          # Convert markdown to HTML
+          npm install -g marked
+          marked README.md > _site/README.html
+          marked docs/API.md > _site/API.html
+          
+          # Setup Swagger UI for interactive docs
+          mkdir -p _site/swagger
+          npx swagger-ui-dist-cli -f docs/openapi.yaml -d _site/swagger
+          
+      - name: 📤 Upload artifact
+        uses: actions/upload-pages-artifact@v3
+
+      - name: 🚀 Deploy to GitHub Pages  
+        id: deployment
+        uses: actions/deploy-pages@v4
