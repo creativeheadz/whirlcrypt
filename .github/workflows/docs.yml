@@ -66,13 +66,7 @@ jobs:
                 display: flex; 
                 align-items: center; 
                 justify-content: center; 
-                gap: 1.5rem; 
                 margin-bottom: 2rem; 
-              }
-              .logo img {
-                height: 80px;
-                width: 80px;
-                object-fit: contain;
               }
               .links { 
                 display: grid; 
@@ -112,8 +106,7 @@ jobs:
           <body>
             <div class="container">
               <div class="logo">
-                <img src="./assets/logo.png" alt="Whirlcrypt Logo" />
-                <h1 style="text-align: center; margin: 0; font-size: 2.5rem;">Whirlcrypt</h1>
+                <img src="./assets/logo.png" alt="Whirlcrypt Logo" style="height: 120px; width: auto;" />
               </div>
               <p style="text-align: center; opacity: 0.8; margin-bottom: 2rem; font-size: 1.1rem; color: #4b5563;">
                 Secure file sharing with RFC 8188 encryption

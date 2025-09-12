@@ -15,13 +15,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <header className="bg-white/30 backdrop-blur-xl border-b border-black/10 shadow-lg">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <Link to="/" className="flex items-center space-x-3">
+            <Link to="/" className="flex items-center">
               <img 
                 src="/assets/logo.png" 
                 alt="Whirlcrypt Logo" 
-                className="h-10 w-10 object-contain"
+                className="h-12 w-auto object-contain"
               />
-              <h1 className="text-xl font-bold text-gray-900">Whirlcrypt</h1>
             </Link>
             
             <nav className="flex items-center space-x-4">
@@ -75,14 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4 text-sm text-gray-700">
               <span>© {new Date().getFullYear()} Whirlcrypt</span>
-              <span className="flex items-center space-x-1">
-                <img 
-                  src="/assets/logo.png" 
-                  alt="Whirlcrypt" 
-                  className="h-4 w-4 object-contain"
-                />
-                <span>RFC 8188 Encrypted</span>
-              </span>
+              <span>RFC 8188 Encrypted</span>
             </div>
             
             <div className="flex items-center space-x-4 text-xs text-gray-600">
