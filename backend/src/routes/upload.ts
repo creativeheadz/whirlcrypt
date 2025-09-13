@@ -1,12 +1,10 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { FileManager } from '../storage/fileManager';
-import { RFC8188Crypto } from '../encryption/rfc8188';
 import { config } from '../config/config';
 import { UploadResponse } from '../types';
+import { getFileManager } from '../services/fileManagerService';
 
 const router = Router();
-const fileManager = new FileManager();
 
 // Configure multer for memory storage (we'll handle encryption)
 const upload = multer({
@@ -59,6 +57,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     }
 
     // Store the already encrypted file data
+    const fileManager = getFileManager();
     const metadata = await fileManager.storeFile(
       req.file.buffer,
       req.file.originalname,

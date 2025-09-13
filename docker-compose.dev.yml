@@ -1,0 +1,78 @@
+version: '3.8'
+
+# Development Docker Compose configuration
+# Usage: docker-compose -f docker-compose.dev.yml up
+
+services:
+  # PostgreSQL Database for development
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: whirlcrypt-postgres-dev
+    environment:
+      POSTGRES_DB: whirlcrypt_dev
+      POSTGRES_USER: whirlcrypt_user
+      POSTGRES_PASSWORD: whirlcrypt_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whirlcrypt_user -d whirlcrypt_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - whirlcrypt-dev
+
+  # Redis for development
+  redis-dev:
+    image: redis:7-alpine
+    container_name: whirlcrypt-redis-dev
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - whirlcrypt-dev
+
+  # Adminer for database management
+  adminer:
+    image: adminer
+    container_name: whirlcrypt-adminer-dev
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres-dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres-dev
+    networks:
+      - whirlcrypt-dev
+
+  # Redis Insight for Redis management
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: whirlcrypt-redis-insight-dev
+    environment:
+      RITRUSTEDORIGINS: http://localhost:8001
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis-dev
+    networks:
+      - whirlcrypt-dev
+
+volumes:
+  postgres_dev_data:
+    driver: local
+
+networks:
+  whirlcrypt-dev:
+    driver: bridge

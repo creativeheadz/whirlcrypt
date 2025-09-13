@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: whirlcrypt-postgres
+    environment:
+      POSTGRES_DB: whirlcrypt
+      POSTGRES_USER: whirlcrypt_user
+      POSTGRES_PASSWORD: whirlcrypt_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whirlcrypt_user -d whirlcrypt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - whirlcrypt
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: whirlcrypt-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - whirlcrypt
+
+  # Whirlcrypt Application
+  whirlcrypt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whirlcrypt-app
+    environment:
+      # Server Configuration
+      NODE_ENV: production
+      PORT: 3001
+      
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: whirlcrypt
+      DB_USER: whirlcrypt_user
+      DB_PASSWORD: whirlcrypt_password
+      DB_POOL_MAX: 20
+      DB_IDLE_TIMEOUT: 30000
+      DB_CONNECTION_TIMEOUT: 10000
+      DB_SSL: false
+      
+      # Redis Configuration (optional)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      
+      # Storage Configuration
+      STORAGE_PROVIDER: local
+      UPLOAD_DIR: /app/uploads
+      
+      # Security Configuration
+      CORS_ORIGIN: "*"
+      
+      # File Configuration
+      DEFAULT_RETENTION_HOURS: 24
+      MAX_RETENTION_HOURS: 168
+      MAX_FILE_SIZE: 104857600
+      CLEANUP_INTERVAL_MINUTES: 60
+      
+      # Rate Limiting
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - whirlcrypt
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: whirlcrypt-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - whirlcrypt
+    restart: unless-stopped
+    networks:
+      - whirlcrypt
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  whirlcrypt:
+    driver: bridge

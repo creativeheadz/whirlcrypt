@@ -8,6 +8,11 @@ Whirlcrypt is a secure file sharing application with end-to-end encryption using
 
 ## Development Commands
 
+### Quick Start
+- `./scripts/setup.sh --dev` - Full development setup (first time)
+- `./scripts/setup.sh` - Interactive setup menu
+- `npm run dev` - Start development servers (after setup)
+
 ### Core Development Commands
 - `npm run dev` - Start both frontend and backend in development mode
 - `npm run dev:backend` - Start only backend server on port 3001
@@ -24,6 +29,11 @@ Whirlcrypt is a secure file sharing application with end-to-end encryption using
 - `npm run build` - Build production bundle with Vite
 - `npm run dev` - Start Vite dev server with HMR
 - `npm run preview` - Preview production build locally
+
+### Docker Commands
+- `docker-compose -f docker-compose.dev.yml up -d` - Start development services
+- `docker-compose up --build` - Start production environment
+- `./scripts/setup.sh` - Interactive Docker setup
 
 ## Architecture
 
@@ -70,12 +80,26 @@ The application uses **client-side encryption** with the following flow:
 - `GET /api/download/:id/info` - File metadata without downloading
 - `/api/admin/*` - Admin panel endpoints for stats and cleanup
 
-### Current Storage Limitations
-The app currently uses filesystem-based storage which is not production-ready:
-- File metadata stored in memory/JSON files
-- No database persistence
-- No horizontal scaling support
-- Consider adding PostgreSQL/MySQL for metadata and cloud storage (S3) for files
+### Database & Storage Architecture (v2.0)
+The application now uses a robust database and configurable storage system:
+
+**Database Layer (PostgreSQL)**:
+- File metadata stored in PostgreSQL with full ACID compliance
+- Automatic schema initialization and migration support
+- Connection pooling and health monitoring
+- Download logging and analytics
+
+**Storage Layer (Configurable)**:
+- Pluggable storage providers (Local, S3, GCS, Azure planned)
+- Currently supports local filesystem with subdirectory organization
+- Configurable via environment variables
+- Built-in health checks and integrity verification
+
+**File Management (`FileManagerV2`)**:
+- Database-backed metadata with storage abstraction
+- Automatic cleanup of expired files from both database and storage
+- Download tracking and rate limiting support
+- Comprehensive error handling and logging
 
 ## Security Architecture
 
@@ -99,14 +123,33 @@ The app currently uses filesystem-based storage which is not production-ready:
 ## Environment Configuration
 
 ### Backend (.env in backend directory)
+Copy `backend/.env.example` to `backend/.env` and configure:
+
 ```bash
+# Server Configuration
+NODE_ENV=development
 PORT=3001
-CORS_ORIGIN=http://localhost:5173
+
+# Database Configuration  
+DB_HOST=localhost
+DB_PORT=5433
+DB_NAME=whirlcrypt_dev
+DB_USER=whirlcrypt_user
+DB_PASSWORD=whirlcrypt_password
+
+# Storage Configuration
+STORAGE_PROVIDER=local
 UPLOAD_DIR=./uploads
+
+# CORS Configuration
+CORS_ORIGIN=http://localhost:5173
+
+# File Configuration
 DEFAULT_RETENTION_HOURS=24
 MAX_RETENTION_HOURS=168
 MAX_FILE_SIZE=104857600
-CLEANUP_INTERVAL_MINUTES=60
+
+# Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 ```
@@ -134,13 +177,48 @@ RATE_LIMIT_MAX_REQUESTS=100
 3. Verify download/decrypt flow works in different browsers
 4. Test URL sharing (keys in fragment, not sent to server)
 
+## Docker Deployment
+
+### Development Environment
+```bash
+# Start development services (PostgreSQL + Redis + Adminer)
+docker-compose -f docker-compose.dev.yml up -d
+
+# Access points:
+# - Database Admin: http://localhost:8080 (Adminer)
+# - Redis Insight: http://localhost:8001
+# - PostgreSQL: localhost:5433
+# - Redis: localhost:6380
+```
+
+### Production Environment
+```bash
+# Build and start production environment
+docker-compose up --build -d
+
+# Includes: App + PostgreSQL + Redis + Nginx
+# Access: http://localhost (via Nginx)
+```
+
+### Setup Script
+```bash
+# Interactive setup
+./scripts/setup.sh
+
+# Automated development setup
+./scripts/setup.sh --dev
+
+# Production deployment
+./scripts/setup.sh --prod
+```
+
 ## Known Issues & Improvements Needed
 
-### Database Integration
-Current in-memory storage needs database:
-- Add PostgreSQL/MySQL for file metadata persistence
-- Consider cloud storage (AWS S3, Google Cloud) for encrypted files
-- Update FileManager to use database queries instead of memory
+### Storage Provider Expansion
+- S3 storage provider (planned)
+- Google Cloud Storage provider (planned)  
+- Azure Storage provider (planned)
+- Multi-provider failover support
 
 ### Production Readiness
 - Add proper logging (structured logging, log levels)

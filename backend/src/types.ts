@@ -7,6 +7,13 @@ export interface FileMetadata {
   expiresAt: Date;
   downloadCount: number;
   maxDownloads?: number;
+  // Extended fields for internal use
+  encryptedSize?: number;
+  storagePath?: string;
+  storageProvider?: string;
+  isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface UploadResponse {

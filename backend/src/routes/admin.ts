@@ -1,9 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { FileManager } from '../storage/fileManager';
 import { config } from '../config/config';
+import { getFileManager } from '../services/fileManagerService';
 
 const router = Router();
-const fileManager = new FileManager();
 
 /**
  * Get storage statistics
@@ -11,6 +10,7 @@ const fileManager = new FileManager();
  */
 router.get('/stats', async (req: Request, res: Response) => {
   try {
+    const fileManager = getFileManager();
     const stats = await fileManager.getStats();
     
     res.json({
@@ -36,6 +36,7 @@ router.get('/stats', async (req: Request, res: Response) => {
  */
 router.post('/cleanup', async (req: Request, res: Response) => {
   try {
+    const fileManager = getFileManager();
     const cleanedCount = await fileManager.cleanupExpiredFiles();
     
     res.json({

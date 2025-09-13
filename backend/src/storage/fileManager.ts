@@ -7,7 +7,7 @@ import { config } from '../config/config';
 export class FileManager {
   private static readonly METADATA_EXT = '.meta';
   
-  constructor(private uploadDir: string = config.uploadDir) {
+  constructor(private uploadDir: string = config.storage.local?.path || './uploads') {
     this.ensureUploadDir();
   }
 

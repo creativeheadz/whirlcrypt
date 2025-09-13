@@ -1,9 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { FileManager } from '../storage/fileManager';
-import { RFC8188Crypto } from '../encryption/rfc8188';
+import { getFileManager } from '../services/fileManagerService';
 
 const router = Router();
-const fileManager = new FileManager();
 
 /**
  * Download and decrypt file
@@ -12,6 +10,7 @@ const fileManager = new FileManager();
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const fileManager = getFileManager();
     
     // Parse decryption key from request headers or body
     const keyHex = req.headers['x-encryption-key'] as string || req.query.key as string;
@@ -36,8 +35,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // Increment download counter
-    await fileManager.incrementDownloadCount(id);
+    // Increment download counter and log download (if supported by the file manager)
+    if ('incrementDownloadCount' in fileManager) {
+      await fileManager.incrementDownloadCount(id, req.ip, req.get('User-Agent'));
+    }
 
     // Set response headers for encrypted file
     res.setHeader('Content-Disposition', `attachment; filename="${metadata.filename}"`);
@@ -64,6 +65,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.get('/:id/info', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const fileManager = getFileManager();
 
     // Check if file exists and is available
     const isAvailable = await fileManager.isFileAvailable(id);

@@ -5,7 +5,10 @@ import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import { join } from 'path';
 import { config } from './config/config';
+import { FileManagerV2 } from './storage/FileManagerV2';
 import { FileManager } from './storage/fileManager';
+import { DatabaseConnection } from './database/connection';
+import { setFileManager } from './services/fileManagerService';
 import {
   cspMiddleware,
   rateLimitMiddleware,
@@ -20,7 +23,7 @@ import downloadRouter from './routes/download';
 import adminRouter from './routes/admin';
 
 const app = express();
-const fileManager = new FileManager();
+let fileManager: FileManagerV2 | FileManager;
 
 // Security middleware
 app.use(securityHeaders);
@@ -50,12 +53,36 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
 }));
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    const dbHealth = await DatabaseConnection.healthCheck();
+    
+    // Check file manager health if available
+    let fileSystemHealth: any = { status: 'healthy', storage: {} };
+    if (fileManager && 'healthCheck' in fileManager) {
+      fileSystemHealth = await fileManager.healthCheck();
+    }
+
+    const isHealthy = dbHealth.status === 'healthy' && fileSystemHealth.status === 'healthy';
+    const isUsingDatabase = fileManager instanceof FileManagerV2;
+
+    res.status(isHealthy ? 200 : 503).json({
+      status: isHealthy ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      version: '2.0.0',
+      database: dbHealth,
+      storage: fileSystemHealth.storage || {},
+      fileManager: isUsingDatabase ? 'FileManagerV2 (Database)' : 'FileManager (Filesystem)',
+      environment: config.nodeEnv
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      version: '2.0.0',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Routes
@@ -85,25 +112,91 @@ cron.schedule(cleanupCron, async () => {
   }
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('Received SIGTERM, shutting down gracefully');
-  process.exit(0);
-});
+// Initialize application
+async function initializeApp() {
+  try {
+    console.log('🔄 Initializing Whirlcrypt...');
+    
+    // Test database connection
+    const dbConnected = await DatabaseConnection.testConnection();
+    
+    if (dbConnected) {
+      console.log('✅ Database connected - using FileManagerV2');
+      
+      // Initialize database schema
+      if (config.nodeEnv === 'development') {
+        try {
+          await DatabaseConnection.initializeSchema();
+        } catch (error) {
+          console.warn('⚠️ Could not initialize database schema (may already exist):', (error as Error).message);
+        }
+      }
 
-process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down gracefully');
+      // Initialize FileManagerV2 with database
+      fileManager = new FileManagerV2();
+      await fileManager.initialize();
+      setFileManager(fileManager);
+    } else {
+      console.warn('⚠️ Database not available - falling back to FileManager (filesystem only)');
+      console.warn('⚠️ For full functionality, set up PostgreSQL and configure DB_* environment variables');
+      
+      // Initialize old FileManager without database
+      fileManager = new FileManager();
+      setFileManager(fileManager);
+    }
+
+    console.log('✅ Application initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to initialize application:', error);
+    return false;
+  }
+}
+
+// Graceful shutdown
+const gracefulShutdown = async () => {
+  console.log('🔄 Shutting down gracefully...');
+  
+  try {
+    // Cleanup file manager if it has a cleanup method
+    if (fileManager && 'cleanup' in fileManager) {
+      await fileManager.cleanup();
+    }
+    
+    // Close database connection
+    await DatabaseConnection.close();
+    console.log('✅ Cleanup completed');
+  } catch (error) {
+    console.error('❌ Error during cleanup:', error);
+  }
+  
   process.exit(0);
-});
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 // Start server
 const port = config.port;
-app.listen(port, () => {
-  console.log(`🚀 Whirlcrypt API running on port ${port}`);
-  console.log(`📁 Upload directory: ${config.uploadDir}`);
-  console.log(`⏰ Default retention: ${config.retention.defaultRetentionHours} hours`);
-  console.log(`🧹 Cleanup runs every ${config.retention.cleanupIntervalMinutes} minutes`);
-  console.log(`📦 Max file size: ${Math.round(config.retention.maxFileSize / 1024 / 1024)}MB`);
+
+initializeApp().then((initialized) => {
+  if (!initialized) {
+    console.error('❌ Application failed to initialize');
+    process.exit(1);
+  }
+
+  app.listen(port, () => {
+    console.log(`🚀 Whirlcrypt API v2.0 running on port ${port}`);
+    console.log(`🗄️ Database: ${config.database.host}:${config.database.port}/${config.database.database}`);
+    console.log(`📁 Storage: ${config.storage.provider} (${config.storage.local?.path || 'configured'})`);
+    console.log(`⏰ Default retention: ${config.retention.defaultRetentionHours} hours`);
+    console.log(`🧹 Cleanup runs every ${config.retention.cleanupIntervalMinutes} minutes`);
+    console.log(`📦 Max file size: ${Math.round(config.retention.maxFileSize / 1024 / 1024)}MB`);
+    console.log(`🌍 Environment: ${config.nodeEnv}`);
+  });
+}).catch((error) => {
+  console.error('❌ Failed to start server:', error);
+  process.exit(1);
 });
 
 export default app;
