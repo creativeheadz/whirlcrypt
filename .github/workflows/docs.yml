@@ -8,7 +8,8 @@ on:
       - 'README.md'
       - '.github/workflows/docs.yml'
       - 'frontend/public/assets/**'
-      - 'whirlcrypt-high-resolution-logo-transparent*.png'
+      - 'logo.png'
+      - 'docs/assets/**'
   workflow_dispatch:
 
 permissions:
@@ -44,7 +45,7 @@ jobs:
           
           # Ensure assets directory exists and copy updated logo
           mkdir -p _site/assets
-          cp frontend/public/assets/logo.png _site/assets/logo.png 2>/dev/null || cp whirlcrypt-high-resolution-logo-transparent.png _site/assets/logo.png
+          cp docs/assets/whirlcrypt-logo.png _site/assets/logo.png 2>/dev/null || cp logo.png _site/assets/logo.png
           
           # Create beautiful index.html
           cat > _site/index.html << 'EOF'

@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Upload as UploadIcon, Settings, Github } from 'lucide-react'
 import AnimatedBackground from './AnimatedBackground'
+import Logo from './Logo'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -19,13 +20,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <Link to="/" className="flex items-center">
-              <img 
-                src="/assets/logo.png" 
-                alt="Whirlcrypt Logo" 
-                className="h-12 w-auto object-contain"
-              />
+              <Logo className="h-12" />
             </Link>
-            
+
             <nav className="flex items-center space-x-4">
               <Link
                 to="/"

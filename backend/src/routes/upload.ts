@@ -48,13 +48,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     }
 
     // File is already encrypted client-side, just store it directly
-    // Parse encryption parameters for verification (but don't re-encrypt)
-    const keyHex = req.body.key;
-    const saltHex = req.body.salt;
-
-    if (!keyHex || !saltHex) {
-      return res.status(400).json({ error: 'Missing encryption parameters' });
-    }
+    // No need to verify encryption parameters - server never decrypts files
 
     // Store the already encrypted file data
     const fileManager = getFileManager();

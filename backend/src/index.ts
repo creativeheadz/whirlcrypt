@@ -1,9 +1,13 @@
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import { join } from 'path';
+
+// Load environment variables
+dotenv.config();
 import { config } from './config/config';
 import { FileManagerV2 } from './storage/FileManagerV2';
 import { FileManager } from './storage/fileManager';
@@ -21,9 +25,13 @@ import {
 import uploadRouter from './routes/upload';
 import downloadRouter from './routes/download';
 import adminRouter from './routes/admin';
+import adminAuthRouter from './routes/admin-auth';
 
 const app = express();
 let fileManager: FileManagerV2 | FileManager;
+
+// Trust proxy for reverse proxy setup (nginx)
+app.set('trust proxy', true);
 
 // Security middleware
 app.use(securityHeaders);
@@ -88,6 +96,7 @@ app.get('/api/health', async (req, res) => {
 // Routes
 app.use('/api/upload', uploadRateLimitMiddleware, uploadRouter);
 app.use('/api/download', downloadRouter);
+app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin', adminRouter);
 
 // 404 handler
@@ -185,8 +194,9 @@ initializeApp().then((initialized) => {
     process.exit(1);
   }
 
-  app.listen(port, () => {
+  app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Whirlcrypt API v2.0 running on port ${port}`);
+    console.log(`🌐 Server accessible at http://0.0.0.0:${port} and http://192.168.1.100:${port}`);
     console.log(`🗄️ Database: ${config.database.host}:${config.database.port}/${config.database.database}`);
     console.log(`📁 Storage: ${config.storage.provider} (${config.storage.local?.path || 'configured'})`);
     console.log(`⏰ Default retention: ${config.retention.defaultRetentionHours} hours`);

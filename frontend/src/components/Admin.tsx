@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Settings, BarChart3, Trash2, RefreshCw, HardDrive, Clock, FileText, AlertTriangle } from 'lucide-react'
 import axios from 'axios'
+import AdminLogin from './AdminLogin'
+
 
 interface Stats {
   totalFiles: number
@@ -34,6 +36,9 @@ const Admin: React.FC = () => {
   const [config, setConfig] = useState<Config | null>(null)
   const [loading, setLoading] = useState(true)
   const [cleanupLoading, setCleanupLoading] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,29 +53,39 @@ const Admin: React.FC = () => {
   const [configSaved, setConfigSaved] = useState(false)
 
   useEffect(() => {
-    fetchData()
+    const checkAuth = async () => {
+      try {
+        await axios.get('/api/admin/auth/me')
+        setIsAuthenticated(true)
+      } catch {
+        setIsAuthenticated(false)
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
   }, [])
 
   const fetchData = async () => {
     setLoading(true)
     setError(null)
-    
+
     try {
       const [statsResponse, configResponse] = await Promise.all([
         axios.get('/api/admin/stats'),
         axios.get('/api/admin/config')
       ])
-      
+
       setStats(statsResponse.data)
       setConfig(configResponse.data)
-      
+
       // Update form with current config
       setConfigForm({
         defaultRetentionHours: configResponse.data.retention.defaultRetentionHours,
         maxRetentionHours: configResponse.data.retention.maxRetentionHours,
         maxFileSize: configResponse.data.retention.maxFileSize
       })
-      
+
     } catch (error) {
       const errorMessage = axios.isAxiosError(error)
         ? error.response?.data?.error || 'Failed to load data'
@@ -81,17 +96,23 @@ const Admin: React.FC = () => {
     }
   }
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData()
+    }
+  }, [isAuthenticated])
+
   const handleCleanup = async () => {
     setCleanupLoading(true)
     setCleanupResult(null)
-    
+
     try {
       const response = await axios.post('/api/admin/cleanup')
       setCleanupResult(response.data.message)
-      
+
       // Refresh stats after cleanup
       await fetchData()
-      
+
     } catch (error) {
       const errorMessage = axios.isAxiosError(error)
         ? error.response?.data?.error || 'Cleanup failed'
@@ -105,16 +126,16 @@ const Admin: React.FC = () => {
   const handleConfigSave = async () => {
     setConfigSaving(true)
     setConfigSaved(false)
-    
+
     try {
       await axios.put('/api/admin/config', configForm)
       setConfigSaved(true)
-      
+
       // Refresh config
       await fetchData()
-      
+
       setTimeout(() => setConfigSaved(false), 3000)
-      
+
     } catch (error) {
       const errorMessage = axios.isAxiosError(error)
         ? error.response?.data?.error || 'Failed to save configuration'
@@ -122,6 +143,19 @@ const Admin: React.FC = () => {
       setError(errorMessage)
     } finally {
       setConfigSaving(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await axios.post('/api/admin/auth/logout')
+    } catch (e) {
+      // ignore errors; we'll still clear local state
+    } finally {
+      localStorage.removeItem('adminToken')
+      setIsAuthenticated(false)
+      setStats(null)
+      setConfig(null)
     }
   }
 
@@ -133,8 +167,30 @@ const Admin: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
+
+
   const formatSizeInput = (bytes: number): number => {
     return Math.round(bytes / (1024 * 1024)) // Convert to MB
+  }
+
+  // Auth gating
+  if (!authChecked) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="h-6 w-6 animate-spin text-primary-600" />
+        <span className="ml-2 text-gray-600">Checking authentication...</span>
+      </div>
+    )
+  }
+
+  if (authChecked && !isAuthenticated) {
+    return (
+      <AdminLogin onSuccess={async () => {
+        setIsAuthenticated(true)
+        setError(null)
+        await fetchData()
+      }} />
+    )
   }
 
   if (loading) {
@@ -149,13 +205,20 @@ const Admin: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Admin Panel
-        </h1>
-        <p className="text-gray-600">
-          Manage file retention settings and view system statistics
-        </p>
+      <div className="flex items-center justify-between">
+        <div className="text-left">
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">Admin Panel</h1>
+          <p className="text-gray-600">Manage file retention settings and view system statistics</p>
+        </div>
+        {isAuthenticated && (
+          <button
+            onClick={handleLogout}
+            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white/70 hover:bg-white text-sm text-gray-700 shadow-sm"
+            title="Log out"
+          >
+            Logout
+          </button>
+        )}
       </div>
 
       {/* Error Message */}
@@ -180,7 +243,7 @@ const Admin: React.FC = () => {
               <FileText className="h-8 w-8 text-primary-600" />
             </div>
           </div>
-          
+
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -192,7 +255,7 @@ const Admin: React.FC = () => {
               <HardDrive className="h-8 w-8 text-primary-600" />
             </div>
           </div>
-          
+
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -216,12 +279,12 @@ const Admin: React.FC = () => {
           <Trash2 className="h-5 w-5 mr-2" />
           File Cleanup
         </h2>
-        
+
         <p className="text-gray-600 mb-4">
-          Remove expired files to free up storage space. This operation is automatic but can be 
+          Remove expired files to free up storage space. This operation is automatic but can be
           triggered manually when needed.
         </p>
-        
+
         <button
           onClick={handleCleanup}
           disabled={cleanupLoading}
@@ -234,7 +297,7 @@ const Admin: React.FC = () => {
           )}
           {cleanupLoading ? 'Cleaning up...' : 'Run Cleanup Now'}
         </button>
-        
+
         {cleanupResult && (
           <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
             <p className="text-green-700">{cleanupResult}</p>
@@ -249,14 +312,14 @@ const Admin: React.FC = () => {
             <Settings className="h-5 w-5 mr-2" />
             Configuration
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Retention Settings */}
             <div>
               <h3 className="text-lg font-medium text-gray-800 mb-3">
                 File Retention
               </h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -274,7 +337,7 @@ const Admin: React.FC = () => {
                     className="input"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Maximum Retention (hours)
@@ -290,7 +353,7 @@ const Admin: React.FC = () => {
                     className="input"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Maximum File Size (MB)
@@ -308,29 +371,29 @@ const Admin: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Current Settings Display */}
             <div>
               <h3 className="text-lg font-medium text-gray-800 mb-3">
                 Current Settings
               </h3>
-              
+
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Cleanup Interval:</span>
                   <span className="font-medium">{config.retention.cleanupIntervalMinutes} minutes</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span className="text-gray-600">Rate Limit Window:</span>
                   <span className="font-medium">{config.rateLimiting.windowMs / 60000} minutes</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span className="text-gray-600">Rate Limit Max:</span>
                   <span className="font-medium">{config.rateLimiting.maxRequests} requests</span>
                 </div>
-                
+
                 {config.retention.allowedExtensions && (
                   <div>
                     <span className="text-gray-600">Allowed Extensions:</span>
@@ -344,7 +407,7 @@ const Admin: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Save Button */}
           <div className="mt-6 pt-4 border-t">
             <button
@@ -359,7 +422,7 @@ const Admin: React.FC = () => {
               )}
               {configSaving ? 'Saving...' : 'Save Configuration'}
             </button>
-            
+
             {configSaved && (
               <p className="text-green-600 text-sm mt-2">
                 Configuration saved successfully!

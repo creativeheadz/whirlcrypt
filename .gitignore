@@ -114,3 +114,15 @@ Thumbs.db
 
 # Local development
 .local
+
+# Server configurations (contain sensitive info)
+nginx-*.conf
+*.nginx.conf
+
+# Test files
+test-*.txt
+small-test.txt
+
+# Database dumps
+*.sql.backup
+*.dump

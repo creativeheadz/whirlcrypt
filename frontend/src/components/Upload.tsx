@@ -73,15 +73,9 @@ const UploadPage: React.FC = () => {
         (progress) => setState(prev => ({ ...prev, progress: progress * 0.7 })) // 70% for encryption
       )
 
-      // Convert to hex for transmission
-      const keyHex = Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('')
-      const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('')
-
-      // Create form data
+      // Create form data (no need to send keys - server never decrypts)
       const formData = new FormData()
       formData.append('file', new Blob([encryptedData]), state.file.name)
-      formData.append('key', keyHex)
-      formData.append('salt', saltHex)
       formData.append('retentionHours', state.retentionHours.toString())
 
       // Upload to server

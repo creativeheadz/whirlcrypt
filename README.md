@@ -1,11 +1,11 @@
 <div align="center">
-  <img src="whirlcrypt-high-resolution-logo-transparent.png" alt="Whirlcrypt Logo" width="200" />
+  <img src="logo.png" alt="Whirlcrypt Logo" width="200" />
  
 ### Secure File Sharing with RFC 8188 Encryption
   
   A secure file sharing application inspired by wormhole.app, built with end-to-end encryption using RFC 8188 standard.
   
-  [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-creativeheadz.github.io/whirlcrypt-orange)](https://creativeheadz.github.io/whirlcrypt/)
+  [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-creativeheadz.github.io/whirlcrypt-orange)](https://whirlcrypt.co.uk/)
   [![API Docs](https://img.shields.io/badge/📚_API_Docs-Interactive-blue)](https://creativeheadz.github.io/whirlcrypt/api.html)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 </div>

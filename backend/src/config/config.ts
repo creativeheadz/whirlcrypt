@@ -94,7 +94,7 @@ export const config: AppConfig = {
     maxRetentionHours: parseInt(process.env.MAX_RETENTION_HOURS || '168'), // 7 days
     cleanupIntervalMinutes: parseInt(process.env.CLEANUP_INTERVAL_MINUTES || '60'),
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '104857600'), // 100MB
-    allowedExtensions: process.env.ALLOWED_EXTENSIONS?.split(',')
+    allowedExtensions: process.env.ALLOWED_EXTENSIONS?.split(',').filter(ext => ext.trim() !== '') || undefined
   },
 
   rateLimiting: {
