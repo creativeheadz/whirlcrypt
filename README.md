@@ -17,9 +17,12 @@
 - 🚫 **Zero server access**: Encryption keys never leave your browser
 - ⏰ **Automatic expiration**: Files are automatically deleted after retention period
 - 🔐 **No tracking**: No ads, analytics, or user tracking
-- 🎨 **Modern UI**: Beautiful glassmorphism design with responsive layout
+- 🎨 **Modern UI**: Beautiful glassmorphism design with animated geometric background
 - 📱 **Mobile friendly**: Works seamlessly on all devices
 - 🚀 **Fast & lightweight**: Built with React + Vite for optimal performance
+- 🗄️ **Database-backed**: PostgreSQL integration with graceful filesystem fallback
+- 🐳 **Docker support**: Complete containerized development environment
+- 🔧 **Configurable storage**: Pluggable storage providers (Local, S3, GCS, Azure planned)
 
 ## 🖥️ Screenshots
 
@@ -34,21 +37,42 @@
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
+- PostgreSQL (optional - will fallback to filesystem)
+- Docker & Docker Compose (optional - for full development environment)
 
-### Installation
+### Option 1: Quick Development Setup (Recommended)
 
-1. **Clone and install dependencies:**
+```bash
+# Clone the repository
+git clone <repository-url>
+cd Fileshare
+
+# Run automated setup script
+./scripts/setup.sh --dev
+
+# Start development servers
+npm run dev
+```
+
+### Option 2: Manual Setup
+
+1. **Install dependencies:**
    ```bash
-   cd Fileshare
    npm install
    cd backend && npm install
    cd ../frontend && npm install
    cd ..
    ```
 
-2. **Start development servers:**
+2. **Configure environment:**
+   ```bash
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your settings
+   ```
+
+3. **Start development servers:**
    ```bash
    npm run dev
    ```
@@ -57,47 +81,107 @@
    - Backend API on http://localhost:3001
    - Frontend on http://localhost:5173
 
-3. **Open your browser:**
+4. **Open your browser:**
    - Go to http://localhost:5173
    - Upload files securely!
+
+### Option 3: Full Docker Environment
+
+```bash
+# Start PostgreSQL, Redis, and admin tools
+docker-compose -f docker-compose.dev.yml up -d
+
+# Then run the application
+npm run dev
+
+# Or run everything in containers
+docker-compose up --build
+```
+
+**Access Points:**
+- **App**: http://localhost:5173
+- **API**: http://localhost:3001
+- **Database Admin**: http://localhost:8080 (Adminer)
+- **Redis Insight**: http://localhost:8001
 
 ## 📁 Project Structure
 
 ```
 fileshare/
-├── backend/                 # Express.js API server
+├── backend/                 # Express.js API server (v2.0)
 │   ├── src/
-│   │   ├── encryption/      # RFC 8188 implementation
-│   │   ├── routes/          # API endpoints
-│   │   ├── middleware/      # Security middleware
-│   │   ├── storage/         # File storage management
-│   │   └── config/          # Configuration
-│   └── uploads/             # File storage directory
-├── frontend/                # React + Vite frontend  
+│   │   ├── database/        # PostgreSQL models and connections
+│   │   ├── routes/          # API endpoints (/upload, /download, /admin)
+│   │   ├── middleware/      # Security middleware & rate limiting
+│   │   ├── storage/         # Pluggable storage providers & management
+│   │   ├── services/        # Business logic & shared services
+│   │   └── config/          # Environment configuration
+│   ├── .env.example         # Environment template
+│   └── uploads/             # Local file storage (if using filesystem)
+├── frontend/                # React + Vite frontend
 │   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── crypto/          # Client-side encryption
+│   │   ├── components/      # React components (with animated background)
+│   │   ├── contexts/        # React contexts (Upload state management)
+│   │   ├── crypto/          # Client-side RFC 8188 encryption
 │   │   └── utils/           # Utility functions
-└── shared/                  # Shared types and utilities
+├── scripts/                 # Development & deployment scripts
+│   └── setup.sh            # Automated environment setup
+├── docker-compose.dev.yml   # Development services (PostgreSQL, Redis)
+├── docker-compose.yml       # Production deployment
+├── Dockerfile              # Multi-stage production build
+└── nginx.conf              # Nginx reverse proxy configuration
 ```
 
 ## 🛠️ Configuration
 
 ### Environment Variables
 
-Create `.env` files in the backend directory:
+Copy `backend/.env.example` to `backend/.env` and configure:
 
 ```bash
-# Backend (.env)
+# Server Configuration
+NODE_ENV=development
 PORT=3001
-CORS_ORIGIN=http://localhost:5173
+
+# Database Configuration (PostgreSQL)
+DB_HOST=localhost
+DB_PORT=5433
+DB_NAME=whirlcrypt_dev
+DB_USER=whirlcrypt_user
+DB_PASSWORD=whirlcrypt_password
+
+# Storage Configuration
+STORAGE_PROVIDER=local
 UPLOAD_DIR=./uploads
+
+# CORS Configuration
+CORS_ORIGIN=http://localhost:5173
+
+# File Configuration
 DEFAULT_RETENTION_HOURS=24
 MAX_RETENTION_HOURS=168
 MAX_FILE_SIZE=104857600
-CLEANUP_INTERVAL_MINUTES=60
+
+# Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+```
+
+### Storage Providers
+
+**Local Storage (Default):**
+```bash
+STORAGE_PROVIDER=local
+UPLOAD_DIR=./uploads
+```
+
+**Amazon S3 (Planned):**
+```bash
+STORAGE_PROVIDER=s3
+S3_BUCKET=your-bucket-name
+S3_REGION=us-east-1
+S3_ACCESS_KEY_ID=your-access-key
+S3_SECRET_ACCESS_KEY=your-secret-key
 ```
 
 ### Production Deployment
@@ -225,14 +309,53 @@ npm run lint
 npm run format
 ```
 
-## 📦 Production Considerations
+## 🚀 Architecture & Deployment
 
-1. **File Storage**: Consider using cloud storage (S3, etc.) for production
-2. **Database**: Add PostgreSQL/MySQL for metadata storage
-3. **Monitoring**: Add logging and monitoring (Prometheus, etc.)
-4. **Backup**: Implement backup strategies for critical data
-5. **Rate Limiting**: Configure appropriate limits based on usage
-6. **CDN**: Use CDN for frontend assets in production
+### Architecture v2.0
+
+**Database Layer:**
+- PostgreSQL for file metadata with ACID compliance
+- Connection pooling and health monitoring
+- Graceful fallback to filesystem if database unavailable
+
+**Storage Layer:**
+- Pluggable storage providers (Local, S3, GCS, Azure planned)
+- Storage abstraction with health checks
+- Configurable via environment variables
+
+**Security:**
+- Content Security Policy with no external dependencies
+- Rate limiting with configurable thresholds
+- Helmet.js security middleware
+
+### Production Deployment
+
+**Docker (Recommended):**
+```bash
+# Production build with all services
+docker-compose up --build -d
+
+# Includes: App + PostgreSQL + Redis + Nginx
+# Access: http://localhost
+```
+
+**Manual Deployment:**
+```bash
+# 1. Setup PostgreSQL database
+# 2. Configure environment variables
+# 3. Build and start application
+npm run build
+npm start
+```
+
+### Production Considerations
+
+1. **Database**: PostgreSQL recommended for production (included in Docker setup)
+2. **Storage**: Use S3/GCS for better scalability and reliability
+3. **Monitoring**: Add structured logging and health monitoring
+4. **Security**: Configure authentication for admin endpoints
+5. **Backup**: Implement database and file backup strategies
+6. **CDN**: Use CDN for frontend assets and large file downloads
 
 ## 🤝 Contributing
 
