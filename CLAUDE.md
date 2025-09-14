@@ -134,8 +134,8 @@ PORT=3001
 DB_HOST=localhost
 DB_PORT=5433
 DB_NAME=whirlcrypt_dev
-DB_USER=whirlcrypt_user
-DB_PASSWORD=whirlcrypt_password
+DB_USER=your_db_username
+DB_PASSWORD=your_secure_password
 
 # Storage Configuration
 STORAGE_PROVIDER=local
