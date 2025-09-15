@@ -227,7 +227,7 @@ export class FileRepository {
       filename: row.filename,
       size: parseInt(row.original_size),
       contentType: row.content_type,
-      uploadDate: row.upload_date,
+      uploadDate: row.created_at,
       expiresAt: row.expires_at,
       downloadCount: row.download_count,
       maxDownloads: row.max_downloads,
