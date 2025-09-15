@@ -27,11 +27,12 @@
 ## 🖥️ Screenshots
 
 <div align="center">
-  <img src="https://via.placeholder.com/600x400/f8f9fa/6c757d?text=Upload+Interface" alt="Upload Interface" width="45%" />
-  <img src="https://via.placeholder.com/600x400/f8f9fa/6c757d?text=Admin+Panel" alt="Admin Panel" width="45%" />
+  <img src="screenshots/2025-09-15 13_28_54-.png" alt="Upload Interface - Secure file sharing with glassmorphism design" width="30%" />
+  <img src="screenshots/2025-09-15 13_30_55-.png" alt="File Upload Progress - Encryption and upload in progress" width="30%" />
+  <img src="screenshots/2025-09-15 13_31_15-.png" alt="Share Link Generated - Secure download link with embedded encryption keys" width="30%" />
 </div>
 
-> *Screenshots coming soon - the app features a beautiful white glassmorphism design*
+*Beautiful white glassmorphism design with animated geometric background*
 
 ## 🚀 Quick Start
 
