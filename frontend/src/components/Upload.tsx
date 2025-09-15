@@ -179,7 +179,7 @@ const UploadPage: React.FC = () => {
                 {!state.uploading && !state.shareUrl && (
                   <button
                     onClick={handleUpload}
-                    className="btn-primary"
+                    className="btn-primary flex items-center"
                   >
                     <Lock className="h-4 w-4 mr-2" />
                     Encrypt & Upload
