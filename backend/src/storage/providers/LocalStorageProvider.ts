@@ -84,10 +84,14 @@ export class LocalStorageProvider implements StorageProvider {
     }
 
     const fullPath = join(this.basePath, storagePath);
-    
+
     try {
-      return await fs.readFile(fullPath);
+      console.log(`Attempting to retrieve file from: ${fullPath}`);
+      const data = await fs.readFile(fullPath);
+      console.log(`Successfully retrieved file, size: ${data.length} bytes`);
+      return data;
     } catch (error: any) {
+      console.error(`Error retrieving file from ${fullPath}:`, error);
       if (error.code === 'ENOENT') {
         throw new Error(`File not found: ${storagePath}`);
       }

@@ -3,6 +3,8 @@ import { FileRepository, CreateFileData, UpdateFileData, DownloadLogData } from 
 import { FileMetadata } from '../types';
 import { config } from '../config/config';
 import { v4 as uuidv4 } from 'uuid';
+import { createReadStream, ReadStream } from 'fs';
+import { join } from 'path';
 
 export class FileManagerV2 {
   private storageManager: StorageManager;
@@ -83,6 +85,31 @@ export class FileManagerV2 {
       return data;
     } catch (error: any) {
       console.error(`Error retrieving file data for ${fileId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get file stream by ID for efficient large file downloads
+   */
+  async getFileStream(fileId: string): Promise<ReadStream | null> {
+    const metadata = await this.fileRepository.findActiveById(fileId);
+    if (!metadata || !metadata.storagePath) {
+      return null;
+    }
+
+    try {
+      // For local storage, create a read stream directly
+      if (config.storage.provider === 'local' && config.storage.local) {
+        const fullPath = join(config.storage.local.path, metadata.storagePath);
+        return createReadStream(fullPath);
+      }
+
+      // For other storage providers, we'd need to implement streaming
+      // For now, return null to fall back to buffer method
+      return null;
+    } catch (error: any) {
+      console.error(`Error creating file stream for ${fileId}:`, error);
       return null;
     }
   }

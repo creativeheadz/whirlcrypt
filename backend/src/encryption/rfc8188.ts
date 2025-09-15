@@ -107,17 +107,18 @@ export class RFC8188Crypto {
       const isLast = offset + recordSize >= data.length;
       const chunkSize = isLast ? data.length - offset : recordSize;
       const chunk = data.subarray(offset, offset + chunkSize);
-      
+
       const nonce = this.createNonce(nonceBase, seq);
       const cipher = createCipheriv(this.ALGORITHM, contentKey, nonce);
-      
-      // Add padding byte for last record
+
+      // Add padding byte for last record (RFC 8188 requires padding delimiter)
       const plaintext = isLast ? Buffer.concat([chunk, Buffer.from([2])]) : chunk;
       
       const encrypted = cipher.update(plaintext);
       cipher.final();
       const tag = cipher.getAuthTag();
-      
+
+      // Combine encrypted data and authentication tag (like Web Crypto API does)
       chunks.push(Buffer.concat([encrypted, tag]));
       
       offset += chunkSize;
@@ -150,8 +151,12 @@ export class RFC8188Crypto {
 
     while (offset < encryptedData.length) {
       const remainingData = encryptedData.length - offset;
-      const expectedChunkSize = Math.min(recordSize + TAG_LENGTH, remainingData);
-      
+      const isLastChunk = remainingData <= recordSize + TAG_LENGTH + 1; // +1 for potential padding
+
+      // Last chunk might have padding, so it can be up to recordSize + 1 + TAG_LENGTH
+      const maxChunkSize = isLastChunk ? recordSize + TAG_LENGTH + 1 : recordSize + TAG_LENGTH;
+      const expectedChunkSize = Math.min(maxChunkSize, remainingData);
+
       if (expectedChunkSize <= TAG_LENGTH) {
         throw new Error('Invalid encrypted data: chunk too small');
       }

@@ -176,10 +176,17 @@ export class ClientCrypto {
    * Decrypt data using RFC 8188 format
    */
   static async decryptData(
-    encryptedData: Uint8Array, 
+    encryptedData: Uint8Array,
     key: Uint8Array,
     onProgress?: (progress: number) => void
   ): Promise<Uint8Array> {
+    // Debug logging can be enabled for troubleshooting
+    const debug = false;
+    if (debug) {
+      console.log('🔓 Starting decryption process');
+      console.log(`📊 Encrypted data size: ${encryptedData.length} bytes`);
+    }
+
     // Parse header
     if (encryptedData.length < SALT_LENGTH + 5) {
       throw new Error('Invalid encrypted data: header too short');
@@ -189,11 +196,21 @@ export class ClientCrypto {
     const recordSizeView = new DataView(encryptedData.buffer, SALT_LENGTH, 4);
     const recordSize = recordSizeView.getUint32(0, false);
     const keyIdLength = encryptedData[SALT_LENGTH + 4];
-    
+
+    if (debug) {
+      console.log(`📋 Header info: recordSize=${recordSize}, keyIdLength=${keyIdLength}`);
+    }
+
     const headerLength = SALT_LENGTH + 5 + keyIdLength;
-    
+
+    if (debug) {
+      console.log('🔑 Deriving keys...');
+    }
     const contentKey = await this.deriveKey(salt, key);
     const nonceBase = await this.deriveNonce(salt, key);
+    if (debug) {
+      console.log('✅ Keys derived successfully');
+    }
 
     // Import key for AES-GCM
     const cryptoKey = await crypto.subtle.importKey(
@@ -207,27 +224,49 @@ export class ClientCrypto {
     const chunks: Uint8Array[] = [];
     let seq = 0;
     let offset = headerLength;
+    let totalChunks = 0;
+
+    if (debug) {
+      console.log(`🔄 Starting chunk decryption from offset ${offset}`);
+    }
 
     while (offset < encryptedData.length) {
       const remainingData = encryptedData.length - offset;
       const tagLength = 16; // AES-GCM tag length
-      const expectedChunkSize = Math.min(recordSize + tagLength, remainingData);
-      
+      const isLastChunk = remainingData <= recordSize + tagLength + 1; // +1 for potential padding
+
+      // Last chunk might have padding, so it can be up to recordSize + 1 + tagLength
+      const maxChunkSize = isLastChunk ? recordSize + tagLength + 1 : recordSize + tagLength;
+      const expectedChunkSize = Math.min(maxChunkSize, remainingData);
+
       if (expectedChunkSize <= tagLength) {
         throw new Error('Invalid encrypted data: chunk too small');
       }
 
+      if (debug) {
+        console.log(`🧩 Processing chunk ${seq}: offset=${offset}, size=${expectedChunkSize}`);
+      }
+
       const encryptedChunk = encryptedData.slice(offset, offset + expectedChunkSize);
       const nonce = this.createNonce(nonceBase, seq);
-      
-      // Decrypt chunk
-      const decrypted = await crypto.subtle.decrypt(
-        { name: this.ALGORITHM, iv: nonce },
-        cryptoKey,
-        encryptedChunk
-      );
-      
-      const decryptedArray = new Uint8Array(decrypted);
+
+      let decryptedArray: Uint8Array;
+      try {
+        // Decrypt chunk
+        const decrypted = await crypto.subtle.decrypt(
+          { name: this.ALGORITHM, iv: nonce },
+          cryptoKey,
+          encryptedChunk
+        );
+
+        decryptedArray = new Uint8Array(decrypted);
+        if (debug) {
+          console.log(`✅ Chunk ${seq} decrypted successfully: ${decryptedArray.length} bytes`);
+        }
+      } catch (decryptError) {
+        console.error(`❌ Failed to decrypt chunk ${seq}:`, decryptError);
+        throw new Error(`Decryption failed at chunk ${seq}: ${decryptError.message}`);
+      }
       
       // Remove padding from last record
       const isLast = offset + expectedChunkSize >= encryptedData.length;
@@ -252,14 +291,21 @@ export class ClientCrypto {
 
     // Combine all chunks
     const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    if (debug) {
+      console.log(`🔗 Combining ${chunks.length} chunks into ${totalLength} bytes`);
+    }
+
     const result = new Uint8Array(totalLength);
     let position = 0;
-    
+
     for (const chunk of chunks) {
       result.set(chunk, position);
       position += chunk.length;
     }
 
+    if (debug) {
+      console.log('🎉 Decryption completed successfully');
+    }
     return result;
   }
 

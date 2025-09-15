@@ -120,15 +120,28 @@ const Download: React.FC = () => {
 
     } catch (error) {
       console.error('Download error:', error)
-      const errorMessage = axios.isAxiosError(error)
-        ? error.response?.data?.error || 'Download failed'
-        : 'Download failed'
-      
-      setState(prev => ({ 
-        ...prev, 
-        downloading: false, 
-        progress: 0, 
-        error: errorMessage 
+
+      let errorMessage = 'Download failed';
+
+      if (axios.isAxiosError(error)) {
+        // Network/HTTP error
+        errorMessage = error.response?.data?.error || `HTTP ${error.response?.status}: ${error.message}`;
+      } else if (error instanceof Error) {
+        // Decryption or other processing error
+        if (error.message.includes('Decryption failed')) {
+          errorMessage = `Decryption error: ${error.message}`;
+        } else if (error.message.includes('Invalid encrypted data')) {
+          errorMessage = `File corruption: ${error.message}`;
+        } else {
+          errorMessage = `Processing error: ${error.message}`;
+        }
+      }
+
+      setState(prev => ({
+        ...prev,
+        downloading: false,
+        progress: 0,
+        error: errorMessage
       }))
     }
   }
