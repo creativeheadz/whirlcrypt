@@ -5,7 +5,7 @@
   
   A secure file sharing application inspired by wormhole.app, built with end-to-end encryption using RFC 8188 standard.
   
-  [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-https://whirlcypr.co.uk-orange)](https://whirlcrypt.co.uk/)
+  [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-https://whirlcrypt.co.uk-orange)](https://whirlcrypt.co.uk/)
   [![API Docs](https://img.shields.io/badge/📚_API_Docs-Interactive-blue)](https://creativeheadz.github.io/whirlcrypt/api.html)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 </div>
