@@ -1,19 +1,25 @@
 [Unit]
 Description=Whirlcrypt Secure File Sharing Service
-After=network.target
+After=network.target postgresql.service
+Wants=postgresql.service
 
 [Service]
 Type=simple
 User=andrei
-WorkingDirectory=/home/andrei/whirlcrypt/backend
+Group=andrei
+WorkingDirectory=/home/andrei/whirlcrypt
 EnvironmentFile=/home/andrei/whirlcrypt/backend/.env
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/node dist/index.js
+Environment=NODE_ENV=development
+ExecStart=/usr/bin/npm run dev
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=whirlcrypt
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

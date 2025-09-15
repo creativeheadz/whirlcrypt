@@ -99,10 +99,25 @@ app.use('/api/download', downloadRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin', adminRouter);
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
-});
+// Serve static frontend files in production
+if (config.nodeEnv === 'production') {
+  const frontendPath = join(__dirname, '../../frontend/dist');
+  app.use(express.static(frontendPath));
+
+  // Serve index.html for all non-API routes (SPA routing)
+  app.get('*', (req, res) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(join(frontendPath, 'index.html'));
+  });
+} else {
+  // 404 handler for development (frontend served separately)
+  app.use('*', (req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+  });
+}
 
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
