@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Upload as UploadIcon, Settings, Github } from 'lucide-react'
+import { Upload as UploadIcon, Settings, Github, Shield } from 'lucide-react'
 import AnimatedBackground from './AnimatedBackground'
 import Logo from './Logo'
 
@@ -81,6 +81,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <span>End-to-end encrypted file sharing</span>
               <span>•</span>
               <span>No server-side decryption</span>
+              <span>•</span>
+              <Link
+                to="/security"
+                className="flex items-center space-x-1 hover:text-purple-600 transition-colors duration-200 font-medium"
+              >
+                <Shield className="w-3 h-3" />
+                <span>Security Dashboard</span>
+              </Link>
             </div>
           </div>
         </div>

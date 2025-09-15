@@ -70,14 +70,62 @@ RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
-    DELETE FROM files 
-    WHERE expires_at < CURRENT_TIMESTAMP 
+    DELETE FROM files
+    WHERE expires_at < CURRENT_TIMESTAMP
     OR (max_downloads IS NOT NULL AND download_count >= max_downloads);
-    
+
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
 $$ language 'plpgsql';
+
+-- Security and Attack Logging Tables
+-- Attack logs table - stores all suspicious requests and attacks
+CREATE TABLE IF NOT EXISTS attack_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ip INET NOT NULL,
+    user_agent TEXT,
+    path TEXT NOT NULL,
+    method VARCHAR(10) NOT NULL,
+    country VARCHAR(100),
+    attack_type VARCHAR(20) NOT NULL CHECK (attack_type IN ('permanent_ban', 'temporary_ban', 'suspicious', '404')),
+    reason TEXT NOT NULL,
+    category VARCHAR(20) NOT NULL CHECK (category IN ('wordpress', 'admin', 'env', 'scanner', 'random404', 'exploit')),
+    response_code INTEGER NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for attack_logs
+CREATE INDEX IF NOT EXISTS idx_attack_logs_ip ON attack_logs (ip);
+CREATE INDEX IF NOT EXISTS idx_attack_logs_timestamp ON attack_logs (timestamp);
+CREATE INDEX IF NOT EXISTS idx_attack_logs_category ON attack_logs (category);
+CREATE INDEX IF NOT EXISTS idx_attack_logs_attack_type ON attack_logs (attack_type);
+
+-- Banned IPs table - stores current bans
+CREATE TABLE IF NOT EXISTS banned_ips (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ip INET NOT NULL UNIQUE,
+    ban_type VARCHAR(10) NOT NULL CHECK (ban_type IN ('permanent', 'temporary')),
+    reason TEXT NOT NULL,
+    category VARCHAR(20) NOT NULL,
+    offending_request TEXT NOT NULL,
+    user_agent TEXT,
+    country VARCHAR(100),
+    banned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT true,
+
+    -- Constraints
+    CONSTRAINT check_temporary_ban_expiry CHECK (
+        ban_type = 'permanent' OR (ban_type = 'temporary' AND expires_at IS NOT NULL)
+    )
+);
+
+-- Create indexes for banned_ips
+CREATE INDEX IF NOT EXISTS idx_banned_ips_ip ON banned_ips (ip);
+CREATE INDEX IF NOT EXISTS idx_banned_ips_active ON banned_ips (is_active);
+CREATE INDEX IF NOT EXISTS idx_banned_ips_expires ON banned_ips (expires_at);
+CREATE INDEX IF NOT EXISTS idx_banned_ips_type ON banned_ips (ban_type);
 
 -- Admin users table for authentication
 CREATE TABLE IF NOT EXISTS admin_users (

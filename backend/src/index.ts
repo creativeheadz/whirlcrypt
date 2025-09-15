@@ -26,6 +26,10 @@ import uploadRouter from './routes/upload';
 import downloadRouter from './routes/download';
 import adminRouter from './routes/admin';
 import adminAuthRouter from './routes/admin-auth';
+import securityRouter from './routes/security';
+
+// Import attack detection middleware
+import { AttackDetectionMiddleware } from './middleware/attackDetection';
 
 const app = express();
 let fileManager: FileManagerV2 | FileManager;
@@ -37,6 +41,9 @@ app.set('trust proxy', true);
 app.use(securityHeaders);
 app.use(cspMiddleware);
 app.use(rateLimitMiddleware);
+
+// Attack detection middleware (before routes)
+app.use(AttackDetectionMiddleware.detect());
 
 // CORS configuration
 app.use(cors({
@@ -98,6 +105,10 @@ app.use('/api/upload', uploadRateLimitMiddleware, uploadRouter);
 app.use('/api/download', downloadRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/security', securityRouter); // Public security dashboard
+
+// Serve static files (error pages, etc.)
+app.use(express.static(join(__dirname, '../public')));
 
 // Serve static frontend files in production
 if (config.nodeEnv === 'production') {
@@ -108,20 +119,25 @@ if (config.nodeEnv === 'production') {
   app.get('*', (req, res) => {
     // Skip API routes
     if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ error: 'API endpoint not found' });
+      return res.status(404).sendFile(join(__dirname, '../public/404.html'));
     }
     res.sendFile(join(frontendPath, 'index.html'));
   });
 } else {
   // 404 handler for development (frontend served separately)
-  app.use('*', (req, res) => {
-    res.status(404).json({ error: 'Endpoint not found' });
-  });
+  app.use('*', AttackDetectionMiddleware.handle404());
 }
 
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', err);
+
+  // Check if request accepts HTML
+  if (req.accepts('html')) {
+    return res.status(500).sendFile(join(__dirname, '../public/500.html'));
+  }
+
+  // API requests get JSON response
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -130,7 +146,19 @@ const cleanupCron = `0 */${config.retention.cleanupIntervalMinutes} * * *`;
 cron.schedule(cleanupCron, async () => {
   try {
     const cleanedCount = await fileManager.cleanupExpiredFiles();
-    console.log(`Cleanup completed: ${cleanedCount} expired files removed`);
+    console.log(`🧹 File cleanup completed: ${cleanedCount} expired files removed`);
+
+    // Also cleanup security logs and expired bans
+    const { AttackLogger } = await import('./services/AttackLogger');
+    const { BanManager } = await import('./services/BanManager');
+
+    const attackLogger = new AttackLogger();
+    const banManager = new BanManager();
+
+    const oldLogsCleanup = await attackLogger.cleanupOldLogs();
+    const expiredBansCleanup = await banManager.cleanupExpiredBans();
+
+    console.log(`🛡️ Security cleanup completed: ${oldLogsCleanup} old logs, ${expiredBansCleanup} expired bans`);
   } catch (error) {
     console.error('Cleanup error:', error);
   }
