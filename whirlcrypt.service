@@ -9,8 +9,8 @@ User=andrei
 Group=andrei
 WorkingDirectory=/home/andrei/whirlcrypt
 EnvironmentFile=/home/andrei/whirlcrypt/backend/.env
-Environment=NODE_ENV=development
-ExecStart=/usr/bin/npm run dev
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm start
 Restart=always
 RestartSec=10
 StandardOutput=journal
