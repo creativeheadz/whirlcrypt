@@ -34,8 +34,8 @@ import { AttackDetectionMiddleware } from './middleware/attackDetection';
 const app = express();
 let fileManager: FileManagerV2 | FileManager;
 
-// Trust proxy for reverse proxy setup (nginx)
-app.set('trust proxy', true);
+// Trust proxy for reverse proxy setup (nginx) - use loopback for local setup
+app.set('trust proxy', 'loopback');
 
 // Security middleware
 app.use(securityHeaders);

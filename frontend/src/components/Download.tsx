@@ -46,23 +46,7 @@ const Download: React.FC = () => {
 
     setState(prev => ({ ...prev, keys }))
 
-    // Fetch file info
-    const fetchFileInfo = async () => {
-      if (!id) return
-      
-      try {
-        const response = await axios.get(`/api/download/${id}/info`)
-        setState(prev => ({ ...prev, fileInfo: response.data }))
-      } catch (error) {
-        const errorMessage = axios.isAxiosError(error)
-          ? error.response?.data?.error || 'File not found'
-          : 'Failed to load file info'
-        
-        setState(prev => ({ ...prev, error: errorMessage }))
-      }
-    }
-
-    fetchFileInfo()
+    // Don't fetch file info - metadata will be revealed only after successful decryption
   }, [id])
 
   const handleDownload = async () => {
@@ -94,28 +78,48 @@ const Download: React.FC = () => {
       const decryptedData = await ClientCrypto.decryptData(
         encryptedData,
         state.keys.key,
+        state.keys.salt,
         (progress) => setState(prev => ({ ...prev, progress: 50 + (progress * 0.5) })) // 50% for decryption
       )
 
+      // After successful decryption, get the real filename from response headers
+      const contentDisposition = response.headers['content-disposition']
+      let filename = 'download'
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+
       // Create and trigger download
-      const blob = new Blob([decryptedData], { 
-        type: state.fileInfo?.contentType || 'application/octet-stream' 
+      const blob = new Blob([decryptedData], {
+        type: 'application/octet-stream' // Always use generic type for security
       })
-      
+
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = state.fileInfo?.filename || 'download'
+      link.download = filename
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
 
-      setState(prev => ({ 
-        ...prev, 
-        downloading: false, 
-        progress: 100, 
-        downloaded: true 
+      // Set file info after successful decryption
+      setState(prev => ({
+        ...prev,
+        downloading: false,
+        progress: 100,
+        downloaded: true,
+        fileInfo: {
+          filename,
+          size: decryptedData.length,
+          contentType: 'application/octet-stream',
+          uploadDate: new Date(),
+          expiresAt: new Date(),
+          downloadCount: 0
+        }
       }))
 
     } catch (error) {
@@ -188,12 +192,53 @@ const Download: React.FC = () => {
         </p>
       </div>
 
-      {/* File Info Card */}
-      {state.fileInfo && (
+      {/* Generic Download Card - Before decryption */}
+      {!state.downloaded && !state.error && (
+        <div className="card p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <Lock className="h-8 w-8 text-orange-500" />
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Encrypted File</h2>
+              <p className="text-gray-600">Ready to download and decrypt</p>
+            </div>
+          </div>
+
+          {/* Download Button */}
+          <div className="mt-6">
+            <button
+              onClick={handleDownload}
+              disabled={state.downloading || !state.keys}
+              className="btn-primary w-full flex items-center justify-center"
+            >
+              <DownloadIcon className="h-4 w-4 mr-2" />
+              {state.downloading ? 'Downloading...' : 'Download & Decrypt File'}
+            </button>
+          </div>
+
+          {/* Progress Bar */}
+          {state.downloading && (
+            <div className="mt-4">
+              <div className="flex justify-between text-sm text-gray-600 mb-1">
+                <span>Downloading and decrypting...</span>
+                <span>{Math.round(state.progress)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${state.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* File Info Card - Only shown after successful decryption */}
+      {state.downloaded && state.fileInfo && (
         <div className="card p-6">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center space-x-3">
-              <FileText className="h-8 w-8 text-gray-400" />
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">
                   {state.fileInfo.filename}
@@ -232,47 +277,15 @@ const Download: React.FC = () => {
             </div>
           </div>
 
-          {/* Download Button */}
-          {!state.downloaded && (
-            <div className="mt-6">
-              <button
-                onClick={handleDownload}
-                disabled={state.downloading || !state.keys}
-                className="btn-primary w-full flex items-center justify-center"
-              >
-                <DownloadIcon className="h-4 w-4 mr-2" />
-                {state.downloading ? 'Downloading...' : 'Download File'}
-              </button>
-            </div>
-          )}
-
-          {/* Progress Bar */}
-          {state.downloading && (
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-1">
-                <span>Downloading and decrypting...</span>
-                <span>{Math.round(state.progress)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${state.progress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
           {/* Success Message */}
-          {state.downloaded && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 text-green-500 mr-2" />
-                <span className="text-green-700 text-sm">
-                  File downloaded and decrypted successfully!
-                </span>
-              </div>
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+            <div className="flex items-center">
+              <CheckCircle2 className="h-4 w-4 text-green-500 mr-2" />
+              <span className="text-green-700 text-sm">
+                File downloaded and decrypted successfully!
+              </span>
             </div>
-          )}
+          </div>
         </div>
       )}
 

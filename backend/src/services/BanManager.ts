@@ -40,6 +40,7 @@ export class BanManager {
     '127.0.0.1',
     '::1',
     '192.168.1.100', // Your server IP
+    '81.150.150.132', // User's IP - whitelisted
     '10.0.0.0/8',    // Private networks
     '172.16.0.0/12', // Private networks
     '192.168.0.0/16' // Private networks

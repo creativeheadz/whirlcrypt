@@ -178,6 +178,7 @@ export class ClientCrypto {
   static async decryptData(
     encryptedData: Uint8Array,
     key: Uint8Array,
+    salt: Uint8Array,
     onProgress?: (progress: number) => void
   ): Promise<Uint8Array> {
     // Debug logging can be enabled for troubleshooting
@@ -192,7 +193,7 @@ export class ClientCrypto {
       throw new Error('Invalid encrypted data: header too short');
     }
 
-    const salt = encryptedData.slice(0, SALT_LENGTH);
+    const headerSalt = encryptedData.slice(0, SALT_LENGTH);
     const recordSizeView = new DataView(encryptedData.buffer, SALT_LENGTH, 4);
     const recordSize = recordSizeView.getUint32(0, false);
     const keyIdLength = encryptedData[SALT_LENGTH + 4];
@@ -201,11 +202,23 @@ export class ClientCrypto {
       console.log(`📋 Header info: recordSize=${recordSize}, keyIdLength=${keyIdLength}`);
     }
 
+    // SECURITY: Validate that the salt from URL matches the salt in the file header
+    if (headerSalt.length !== salt.length) {
+      throw new Error('Invalid encryption keys: salt length mismatch');
+    }
+
+    for (let i = 0; i < salt.length; i++) {
+      if (headerSalt[i] !== salt[i]) {
+        throw new Error('Invalid encryption keys: salt mismatch');
+      }
+    }
+
     const headerLength = SALT_LENGTH + 5 + keyIdLength;
 
     if (debug) {
-      console.log('🔑 Deriving keys...');
+      console.log('🔑 Deriving keys with validated salt...');
     }
+    // Use the salt from URL (which we've now validated matches the header)
     const contentKey = await this.deriveKey(salt, key);
     const nonceBase = await this.deriveNonce(salt, key);
     if (debug) {
