@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 import axios from 'axios'
+import { ToastProvider } from './contexts/ToastContext'
 
 // Attach admin token to all API requests and handle token refresh
 axios.interceptors.request.use((config) => {
@@ -31,7 +32,9 @@ axios.interceptors.response.use((response) => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

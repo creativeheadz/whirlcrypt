@@ -4,6 +4,7 @@ import { Upload as UploadIcon, FileText, Lock, Clock, Share2, AlertCircle, Check
 import { ClientCrypto } from '../crypto/rfc8188'
 import JSZip from 'jszip'
 import axios from 'axios'
+import { useToast } from '../contexts/ToastContext'
 
 interface UploadState {
   file: File | null
@@ -33,6 +34,7 @@ const UploadPage: React.FC = () => {
   })
 
   const [copied, setCopied] = useState(false)
+  const { showError, showSuccess, showWarning, showInfo } = useToast()
 
   // Calculate total size of files
   const calculateTotalSize = (files: File[]): number => {
@@ -60,10 +62,10 @@ const UploadPage: React.FC = () => {
       const totalSize = calculateTotalSize(acceptedFiles)
 
       if (totalSize > 100 * 1024 * 1024) {
-        setState(prev => ({
-          ...prev,
-          error: `Total size too large (${formatFileSize(totalSize)}). Maximum allowed: 100MB`
-        }))
+        showError(
+          'Files Too Large',
+          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 100MB`
+        )
         return
       }
 
@@ -111,7 +113,7 @@ const UploadPage: React.FC = () => {
         errorMsg = 'Too many files selected'
       }
 
-      setState(prev => ({ ...prev, error: errorMsg }))
+      showError('Upload Error', errorMsg)
     }
   })
 
@@ -122,10 +124,10 @@ const UploadPage: React.FC = () => {
       const totalSize = calculateTotalSize(files)
 
       if (totalSize > 100 * 1024 * 1024) {
-        setState(prev => ({
-          ...prev,
-          error: `Total size too large (${formatFileSize(totalSize)}). Maximum allowed: 100MB`
-        }))
+        showError(
+          'Files Too Large',
+          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 100MB`
+        )
         return
       }
 
@@ -165,10 +167,10 @@ const UploadPage: React.FC = () => {
       const totalSize = calculateTotalSize(files)
 
       if (totalSize > 100 * 1024 * 1024) {
-        setState(prev => ({
-          ...prev,
-          error: `Total size too large (${formatFileSize(totalSize)}). Maximum allowed: 100MB`
-        }))
+        showError(
+          'Folder Too Large',
+          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 100MB`
+        )
         return
       }
 
@@ -182,9 +184,24 @@ const UploadPage: React.FC = () => {
         error: null,
         shareUrl: null
       }))
+
+      // Show success notification
+      showSuccess(
+        'Folder Selected!',
+        `${files.length} files selected from "${folderName}"`
+      )
     }
     // Reset the input
     e.target.value = ''
+  }
+
+  // Show info before folder selection
+  const handleFolderButtonClick = () => {
+    showInfo(
+      'Browser Security Notice',
+      'Your browser will ask permission to upload multiple files. Click "Upload" to proceed.',
+      8000 // Show for 8 seconds
+    )
   }
 
   // Create ZIP file from folder
@@ -295,6 +312,12 @@ const UploadPage: React.FC = () => {
         error: null
       }))
 
+      // Show success notification
+      showSuccess(
+        state.isFolder ? 'Folder Uploaded!' : 'File Uploaded!',
+        'Your encrypted file is ready to share securely.'
+      )
+
     } catch (error) {
       console.error('Upload error:', error)
       const errorMessage = axios.isAxiosError(error)
@@ -310,6 +333,9 @@ const UploadPage: React.FC = () => {
         zipProgress: 0,
         error: errorMessage
       }))
+
+      // Show error notification
+      showError('Upload Failed', errorMessage)
     }
   }
 
@@ -318,6 +344,9 @@ const UploadPage: React.FC = () => {
       await navigator.clipboard.writeText(state.shareUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+
+      // Show success notification
+      showSuccess('Link Copied!', 'Share URL copied to clipboard')
     }
   }
 
@@ -347,6 +376,9 @@ const UploadPage: React.FC = () => {
         <p className="text-gray-700 max-w-2xl mx-auto">
           Share files and folders securely with end-to-end encryption. Files are encrypted in your browser
           before upload using RFC 8188 standard. Folders are automatically packaged into encrypted ZIP archives.
+        </p>
+        <p className="text-sm text-gray-500 max-w-xl mx-auto mt-2">
+          📁 <strong>Folder uploads:</strong> Your browser will ask permission to access multiple files - this is normal security behavior.
         </p>
       </div>
 
@@ -458,7 +490,10 @@ const UploadPage: React.FC = () => {
                     onChange={handleFileSelect}
                   />
                 </label>
-                <label className="btn-secondary flex items-center cursor-pointer">
+                <label
+                  className="btn-secondary flex items-center cursor-pointer"
+                  onClick={handleFolderButtonClick}
+                >
                   <Folder className="h-4 w-4 mr-2" />
                   Select Folder
                   <input
