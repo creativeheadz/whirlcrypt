@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="Whirlcrypt Logo" width="200" />
+  <img src="https://raw.githubusercontent.com/creativeheadz/whirlcrypt/refs/heads/main/whirlcrypt-high-resolution-logo-transparent.png" alt="Whirlcrypt Logo" width="200" />
  
 ### Secure File Sharing with RFC 8188 Encryption
   
