@@ -375,3 +375,6 @@ MIT License - see LICENSE file for details
 - Inspired by [wormhole.app](https://wormhole.app)
 - Based on [RFC 8188](https://tools.ietf.org/html/rfc8188) - Encrypted Content-Encoding for HTTP
 - Built with security best practices from OWASP guidelines
+
+ < ! - -   T r i g g e r i n g   S o c k e t   s c a n   - - >  
+ 
