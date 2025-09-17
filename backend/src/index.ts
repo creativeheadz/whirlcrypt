@@ -13,12 +13,14 @@ import { FileManagerV2 } from './storage/FileManagerV2';
 import { FileManager } from './storage/fileManager';
 import { DatabaseConnection } from './database/connection';
 import { setFileManager } from './services/fileManagerService';
+import { certificateMonitoringJob } from './jobs/certificateMonitoring';
 import {
   cspMiddleware,
   rateLimitMiddleware,
   uploadRateLimitMiddleware,
   securityHeaders,
-  sanitizeInput
+  sanitizeInput,
+  handleCSPViolation
 } from './middleware/security';
 
 // Import routes
@@ -39,7 +41,18 @@ app.set('trust proxy', 'loopback');
 
 // Security middleware
 app.use(securityHeaders);
-app.use(cspMiddleware);
+
+// Serve static assets BEFORE attack detection and rate limiting
+if (config.nodeEnv === 'production') {
+  const frontendPath = join(__dirname, '../../frontend/dist');
+
+  // Serve static assets (JS, CSS, images) without any middleware interference
+  app.use('/assets', express.static(join(frontendPath, 'assets')));
+  app.use('/favicon.ico', express.static(join(frontendPath, 'favicon.ico')));
+  app.use('/favicon.png', express.static(join(frontendPath, 'favicon.png')));
+}
+
+// Apply rate limiting and attack detection AFTER static assets
 app.use(rateLimitMiddleware);
 
 // Attack detection middleware (before routes)
@@ -113,15 +126,37 @@ app.use(express.static(join(__dirname, '../public')));
 // Serve static frontend files in production
 if (config.nodeEnv === 'production') {
   const frontendPath = join(__dirname, '../../frontend/dist');
-  app.use(express.static(frontendPath));
 
-  // Serve index.html for all non-API routes (SPA routing)
-  app.get('*', (req, res) => {
+  // Serve index.html for all non-API routes (SPA routing) with CSP nonce injection
+  app.get('*', cspMiddleware, (req, res) => {
     // Skip API routes
     if (req.path.startsWith('/api/')) {
       return res.status(404).sendFile(join(__dirname, '../public/404.html'));
     }
-    res.sendFile(join(frontendPath, 'index.html'));
+
+    // Inject CSP nonce into HTML and remove conflicting CSP meta tag
+    const fs = require('fs');
+    const indexPath = join(frontendPath, 'index.html');
+
+    try {
+      let html = fs.readFileSync(indexPath, 'utf8');
+      const nonce = res.locals.cspNonce;
+
+      if (nonce) {
+        // Add nonce to script tags
+        html = html.replace(/<script/g, `<script nonce="${nonce}"`);
+        // Add nonce to style tags if any
+        html = html.replace(/<style/g, `<style nonce="${nonce}"`);
+
+        // Remove conflicting CSP meta tag (server CSP takes precedence)
+        html = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/i, '');
+      }
+
+      res.send(html);
+    } catch (error) {
+      console.error('Error serving index.html:', error);
+      res.status(500).send('Internal Server Error');
+    }
   });
 } else {
   // 404 handler for development (frontend served separately)
@@ -246,6 +281,12 @@ initializeApp().then((initialized) => {
     console.log(`🧹 Cleanup runs every ${config.retention.cleanupIntervalMinutes} minutes`);
     console.log(`📦 Max file size: ${Math.round(config.retention.maxFileSize / 1024 / 1024)}MB`);
     console.log(`🌍 Environment: ${config.nodeEnv}`);
+
+    // Start certificate transparency monitoring
+    if (process.env.CT_MONITOR_ENABLED !== 'false') {
+      certificateMonitoringJob.start();
+      console.log(`🔍 Certificate Transparency monitoring enabled`);
+    }
   });
 }).catch((error) => {
   console.error('❌ Failed to start server:', error);

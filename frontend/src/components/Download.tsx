@@ -55,10 +55,14 @@ const Download: React.FC = () => {
     setState(prev => ({ ...prev, downloading: true, progress: 0, error: null }))
 
     try {
-      // Convert key to hex for transmission
-      const keyHex = Array.from(state.keys.key)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('')
+      // Get original hex key from URL fragment (don't double-convert)
+      const fragment = window.location.hash.substring(1);
+      const params = new URLSearchParams(fragment);
+      const keyHex = params.get('key');
+
+      if (!keyHex) {
+        throw new Error('Missing encryption key in URL');
+      }
 
       // Download encrypted file
       const response = await axios.get(`/api/download/${id}`, {
@@ -75,6 +79,12 @@ const Download: React.FC = () => {
 
       // Decrypt file
       const encryptedData = new Uint8Array(response.data)
+      console.log('Encrypted data size:', encryptedData.length)
+      console.log('Keys for decryption:', {
+        key: Array.from(state.keys.key).map(b => b.toString(16).padStart(2, '0')).join(''),
+        salt: Array.from(state.keys.salt).map(b => b.toString(16).padStart(2, '0')).join('')
+      })
+
       const decryptedData = await ClientCrypto.decryptData(
         encryptedData,
         state.keys.key,
@@ -82,15 +92,12 @@ const Download: React.FC = () => {
         (progress) => setState(prev => ({ ...prev, progress: 50 + (progress * 0.5) })) // 50% for decryption
       )
 
-      // After successful decryption, get the real filename from response headers
-      const contentDisposition = response.headers['content-disposition']
-      let filename = 'download'
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/)
-        if (filenameMatch) {
-          filename = filenameMatch[1]
-        }
-      }
+      console.log('Decrypted data size:', decryptedData.length)
+
+      // Extract original filename from URL fragment
+      const urlFragment = window.location.hash.substring(1);
+      const urlParams = new URLSearchParams(urlFragment);
+      const filename = urlParams.get('filename') || `decrypted-file-${id.substring(0, 8)}`
 
       // Create and trigger download
       const blob = new Blob([decryptedData], {

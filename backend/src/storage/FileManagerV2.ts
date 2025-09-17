@@ -5,6 +5,7 @@ import { config } from '../config/config';
 import { v4 as uuidv4 } from 'uuid';
 import { createReadStream, ReadStream } from 'fs';
 import { join } from 'path';
+import { MetadataEncryption, FileMetadataToEncrypt } from '../services/MetadataEncryption';
 
 export class FileManagerV2 {
   private storageManager: StorageManager;
@@ -21,14 +22,16 @@ export class FileManagerV2 {
   }
 
   /**
-   * Store an encrypted file and its metadata
+   * Store an encrypted file and its metadata with enhanced security
    */
   async storeFile(
     encryptedData: Buffer,
     filename: string,
     contentType: string,
     retentionHours: number = config.retention.defaultRetentionHours,
-    maxDownloads?: number
+    maxDownloads?: number,
+    uploaderIP?: string,
+    userAgent?: string
   ): Promise<FileMetadata> {
     const fileId = uuidv4();
     const expiresAt = new Date(Date.now() + (retentionHours * 60 * 60 * 1000));
@@ -46,21 +49,36 @@ export class FileManagerV2 {
       }
     );
 
-    // Create database record
-    const createData: CreateFileData = {
-      filename,
-      originalSize: encryptedData.length, // For encrypted files, we store encrypted size
-      encryptedSize: encryptedData.length,
+    // Encrypt sensitive metadata following Wormhole's approach
+    const metadataToEncrypt: FileMetadataToEncrypt = {
+      originalFilename: filename,
       contentType,
+      uploadTimestamp: new Date(),
+      uploaderIP,
+      userAgent,
+      fileSize: encryptedData.length,
+      retentionHours
+    };
+
+    const encryptedMetadata = MetadataEncryption.encryptMetadata(metadataToEncrypt);
+    const serializedMetadata = MetadataEncryption.serializeEncryptedMetadata(encryptedMetadata);
+
+    // Create database record with encrypted metadata
+    const createData: CreateFileData = {
+      filename: `encrypted_${fileId}`, // Don't store original filename in plaintext
+      originalSize: encryptedData.length,
+      encryptedSize: encryptedData.length,
+      contentType: 'application/octet-stream', // Don't store original content type
       storagePath,
       storageProvider: config.storage.provider,
       expiresAt,
-      maxDownloads
+      maxDownloads,
+      encryptedMetadata: serializedMetadata // Store encrypted metadata
     };
 
     const fileMetadata = await this.fileRepository.create(createData);
-    
-    console.log(`📁 File stored: ${fileId} (${filename}) - expires ${expiresAt.toISOString()}`);
+
+    console.log(`📁 File stored: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
     return fileMetadata;
   }
 
@@ -69,6 +87,34 @@ export class FileManagerV2 {
    */
   async getMetadata(fileId: string): Promise<FileMetadata | null> {
     return this.fileRepository.findById(fileId);
+  }
+
+  /**
+   * Get decrypted file metadata by ID
+   */
+  async getDecryptedMetadata(fileId: string): Promise<(FileMetadata & { decryptedMetadata?: FileMetadataToEncrypt }) | null> {
+    const fileMetadata = await this.fileRepository.findById(fileId);
+
+    if (!fileMetadata) {
+      return null;
+    }
+
+    // If encrypted metadata exists, decrypt it
+    let decryptedMetadata: FileMetadataToEncrypt | undefined;
+    if (fileMetadata.encryptedMetadata) {
+      try {
+        const deserializedMetadata = MetadataEncryption.deserializeEncryptedMetadata(fileMetadata.encryptedMetadata);
+        decryptedMetadata = MetadataEncryption.decryptMetadata(deserializedMetadata);
+      } catch (error) {
+        console.error('Failed to decrypt metadata for file:', fileId, error);
+        // Continue without decrypted metadata rather than failing completely
+      }
+    }
+
+    return {
+      ...fileMetadata,
+      decryptedMetadata
+    };
   }
 
   /**

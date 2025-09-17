@@ -11,6 +11,7 @@ export interface CreateFileData {
   storageProvider: string;
   expiresAt: Date;
   maxDownloads?: number;
+  encryptedMetadata?: string; // Base64 encoded encrypted metadata
 }
 
 export interface UpdateFileData {
@@ -37,10 +38,10 @@ export class FileRepository {
   async create(data: CreateFileData): Promise<FileMetadata> {
     const query = `
       INSERT INTO files (
-        filename, original_size, encrypted_size, content_type, 
-        storage_path, storage_provider, expires_at, max_downloads
+        filename, original_size, encrypted_size, content_type,
+        storage_path, storage_provider, expires_at, max_downloads, encrypted_metadata
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
@@ -52,7 +53,8 @@ export class FileRepository {
       data.storagePath,
       data.storageProvider,
       data.expiresAt,
-      data.maxDownloads
+      data.maxDownloads,
+      data.encryptedMetadata
     ];
 
     const result = await this.pool.query(query, values);
@@ -237,7 +239,8 @@ export class FileRepository {
       storageProvider: row.storage_provider,
       isActive: row.is_active,
       createdAt: row.created_at,
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
+      encryptedMetadata: row.encrypted_metadata
     };
   }
 }

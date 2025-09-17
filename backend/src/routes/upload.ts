@@ -50,13 +50,16 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     // File is already encrypted client-side, just store it directly
     // No need to verify encryption parameters - server never decrypts files
 
-    // Store the already encrypted file data
+    // Store the already encrypted file data with enhanced metadata encryption
     const fileManager = getFileManager();
     const metadata = await fileManager.storeFile(
       req.file.buffer,
       req.file.originalname,
       req.file.mimetype,
-      retentionHours
+      retentionHours,
+      undefined, // maxDownloads
+      req.ip,    // uploaderIP for encrypted metadata
+      req.headers['user-agent'] // userAgent for encrypted metadata
     );
 
     const response: UploadResponse = {

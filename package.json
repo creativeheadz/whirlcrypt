@@ -10,7 +10,12 @@
     "build": "npm run build:frontend && npm run build:backend",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
-    "start": "cd backend && npm start"
+    "start": "cd backend && npm start",
+    "security:audit": "npm run security:audit:backend && npm run security:audit:frontend",
+    "security:audit:backend": "cd backend && npm run security:deps",
+    "security:audit:frontend": "cd frontend && npm run security:deps",
+    "security:full": "npm run security:audit && npm run security:licenses",
+    "security:licenses": "cd backend && npm run security:licenses && cd ../frontend && npm run security:licenses"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

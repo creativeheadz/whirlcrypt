@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { config } from '../config/config';
 import { getFileManager } from '../services/fileManagerService';
 import { requireAuth, logAction, withAuth, AuthenticatedRequest } from '../auth/middleware';
+import { certificateMonitoringJob } from '../jobs/certificateMonitoring';
 
 const router = Router();
 
@@ -114,6 +115,80 @@ router.put('/config', requireAuth, logAction('UPDATE_CONFIG'), withAuth((req: Au
   } catch (error) {
     console.error('Config update error:', error);
     const message = error instanceof Error ? error.message : 'Failed to update config';
+    res.status(500).json({ error: message });
+  }
+}));
+
+/**
+ * Get Certificate Transparency monitoring status
+ * GET /api/admin/ct-monitor/status
+ */
+router.get('/ct-monitor/status', requireAuth, logAction('VIEW_CT_MONITOR'), withAuth(async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const stats = certificateMonitoringJob.getStatistics();
+
+    res.json({
+      success: true,
+      data: {
+        enabled: process.env.CT_MONITOR_ENABLED !== 'false',
+        ...stats,
+        schedule: process.env.CT_MONITOR_SCHEDULE || '0 */6 * * *',
+        monitoredDomains: process.env.CT_MONITOR_DOMAINS?.split(',').map(d => d.trim()) || []
+      }
+    });
+
+  } catch (error) {
+    console.error('CT monitor status error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get CT monitor status';
+    res.status(500).json({ error: message });
+  }
+}));
+
+/**
+ * Force run Certificate Transparency monitoring
+ * POST /api/admin/ct-monitor/run
+ */
+router.post('/ct-monitor/run', requireAuth, logAction('RUN_CT_MONITOR'), withAuth(async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Run monitoring in background
+    certificateMonitoringJob.forceRun().catch(error => {
+      console.error('Background CT monitoring failed:', error);
+    });
+
+    res.json({
+      success: true,
+      message: 'Certificate Transparency monitoring started'
+    });
+
+  } catch (error) {
+    console.error('CT monitor run error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to run CT monitor';
+    res.status(500).json({ error: message });
+  }
+}));
+
+/**
+ * Add domain to CT monitoring
+ * POST /api/admin/ct-monitor/domains
+ */
+router.post('/ct-monitor/domains', requireAuth, logAction('ADD_CT_DOMAIN'), withAuth(async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { domain } = req.body;
+
+    if (!domain || typeof domain !== 'string') {
+      return res.status(400).json({ error: 'Domain is required' });
+    }
+
+    certificateMonitoringJob.addDomain(domain);
+
+    res.json({
+      success: true,
+      message: `Domain ${domain} added to CT monitoring`
+    });
+
+  } catch (error) {
+    console.error('CT monitor add domain error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to add domain';
     res.status(500).json({ error: message });
   }
 }));

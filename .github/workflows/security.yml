@@ -1,0 +1,164 @@
+name: 🔒 Security Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security audit daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        workspace: [backend, frontend]
+    
+    steps:
+      - name: 🛒 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: 📥 Install dependencies
+        run: |
+          npm ci
+          cd ${{ matrix.workspace }}
+          npm ci
+          
+      - name: 🔍 Run npm audit
+        run: |
+          cd ${{ matrix.workspace }}
+          npm audit --audit-level=moderate --json > npm-audit-${{ matrix.workspace }}.json || true
+          
+      - name: 🛡️ Run Socket Security scan
+        run: |
+          cd ${{ matrix.workspace }}
+          npx @socketsecurity/cli@latest audit --json > socket-audit-${{ matrix.workspace }}.json || true
+          
+      - name: 📋 Check licenses
+        run: |
+          cd ${{ matrix.workspace }}
+          npx license-checker --summary --json > licenses-${{ matrix.workspace }}.json || true
+          
+      - name: 📊 Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports-${{ matrix.workspace }}
+          path: |
+            ${{ matrix.workspace }}/npm-audit-${{ matrix.workspace }}.json
+            ${{ matrix.workspace }}/socket-audit-${{ matrix.workspace }}.json
+            ${{ matrix.workspace }}/licenses-${{ matrix.workspace }}.json
+          retention-days: 30
+          
+      - name: 🚨 Fail on high severity issues
+        run: |
+          cd ${{ matrix.workspace }}
+          # Check if there are any high severity vulnerabilities
+          if [ -f "npm-audit-${{ matrix.workspace }}.json" ]; then
+            HIGH_VULNS=$(cat npm-audit-${{ matrix.workspace }}.json | jq '.metadata.vulnerabilities.high // 0')
+            CRITICAL_VULNS=$(cat npm-audit-${{ matrix.workspace }}.json | jq '.metadata.vulnerabilities.critical // 0')
+            
+            if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
+              echo "❌ High or critical severity vulnerabilities found!"
+              echo "High: $HIGH_VULNS, Critical: $CRITICAL_VULNS"
+              exit 1
+            else
+              echo "✅ No high or critical severity vulnerabilities found"
+            fi
+          fi
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: 🛒 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🔍 Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-1.0, AGPL-3.0
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        language: [ 'javascript', 'typescript' ]
+        
+    steps:
+      - name: 🛒 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🔍 Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          
+      - name: 🏗️ Autobuild
+        uses: github/codeql-action/autobuild@v3
+        
+      - name: 🔍 Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [security-audit, dependency-review, codeql-analysis]
+    if: always()
+    
+    steps:
+      - name: 📊 Download all artifacts
+        uses: actions/download-artifact@v4
+        
+      - name: 📋 Generate security summary
+        run: |
+          echo "# 🔒 Security Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Audit Results" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "security-reports-backend" ]; then
+            echo "### Backend Security Scan" >> $GITHUB_STEP_SUMMARY
+            if [ -f "security-reports-backend/npm-audit-backend.json" ]; then
+              BACKEND_VULNS=$(cat security-reports-backend/npm-audit-backend.json | jq '.metadata.vulnerabilities // {}')
+              echo "- NPM Audit: $BACKEND_VULNS" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          if [ -d "security-reports-frontend" ]; then
+            echo "### Frontend Security Scan" >> $GITHUB_STEP_SUMMARY
+            if [ -f "security-reports-frontend/npm-audit-frontend.json" ]; then
+              FRONTEND_VULNS=$(cat security-reports-frontend/npm-audit-frontend.json | jq '.metadata.vulnerabilities // {}')
+              echo "- NPM Audit: $FRONTEND_VULNS" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Security Status" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Automated security scanning completed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 CodeQL analysis performed" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Dependency review completed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🛡️ Socket security scan executed" >> $GITHUB_STEP_SUMMARY

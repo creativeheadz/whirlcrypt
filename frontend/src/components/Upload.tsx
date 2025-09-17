@@ -295,12 +295,13 @@ const UploadPage: React.FC = () => {
         }
       })
 
-      // Generate shareable URL with embedded keys
+      // Generate shareable URL with embedded keys and filename
       const shareUrl = ClientCrypto.generateShareUrl(
         response.data.id,
         key,
         salt,
-        window.location.origin
+        window.location.origin,
+        fileToUpload.name // Include original filename in URL fragment
       )
 
       setState(prev => ({

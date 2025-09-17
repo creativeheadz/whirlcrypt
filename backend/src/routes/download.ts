@@ -39,7 +39,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     // Set response headers for encrypted file
-    res.setHeader('Content-Disposition', `attachment; filename="${metadata.filename}"`);
+    // NOTE: Don't set filename in Content-Disposition - frontend will determine it after decryption
+    res.setHeader('Content-Disposition', 'attachment');
     res.setHeader('Content-Type', 'application/octet-stream'); // Always binary for encrypted data
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');

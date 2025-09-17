@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "security:audit": "npm audit --audit-level=moderate",
+    "security:audit-fix": "npm audit fix",
+    "security:socket": "npx @socketsecurity/cli@latest audit",
+    "security:deps": "npm run security:audit && npm run security:socket",
+    "security:licenses": "npx license-checker --summary"
   },
   "dependencies": {
     "@types/jszip": "^3.4.0",
@@ -19,10 +24,12 @@
     "react-router-dom": "^6.14.2"
   },
   "devDependencies": {
+    "@socketsecurity/cli": "^1.0.0",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.0.3",
     "autoprefixer": "^10.4.14",
+    "license-checker": "^25.0.1",
     "postcss": "^8.4.27",
     "tailwindcss": "^3.3.3",
     "typescript": "^5.0.2",

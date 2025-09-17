@@ -1,0 +1,110 @@
+# Socket Security Configuration for Whirlcrypt
+# Inspired by Wormhole's supply chain security approach
+
+version: 2
+
+# Project settings
+projectId: "whirlcrypt"
+issueRules:
+  # High severity issues that should fail builds
+  high:
+    - "malware"
+    - "backdoor"
+    - "supply-chain-attack"
+    - "typosquatting"
+    - "credential-theft"
+    - "data-exfiltration"
+    
+  # Medium severity issues to warn about
+  medium:
+    - "suspicious-behavior"
+    - "network-access"
+    - "filesystem-access"
+    - "environment-access"
+    - "shell-access"
+    - "obfuscated-code"
+    
+  # Low severity issues to monitor
+  low:
+    - "deprecated-package"
+    - "unmaintained-package"
+    - "license-issue"
+
+# Fail build on high severity issues
+failOn:
+  - "high"
+
+# Monitoring settings
+monitoring:
+  enabled: true
+  alerts:
+    - "new-vulnerabilities"
+    - "supply-chain-attacks"
+    - "malicious-packages"
+
+# Package allowlist (trusted packages)
+allowlist:
+  # Core Node.js and security packages
+  - "express"
+  - "helmet"
+  - "bcrypt"
+  - "jsonwebtoken"
+  - "speakeasy"
+  - "cors"
+  - "pg"
+  - "multer"
+  - "uuid"
+  - "dotenv"
+  - "node-cron"
+  - "express-rate-limit"
+  - "qrcode"
+  - "swagger-ui-express"
+  - "yamljs"
+  - "chalk"
+  - "commander"
+  
+  # Frontend packages
+  - "react"
+  - "react-dom"
+  - "react-router-dom"
+  - "react-dropzone"
+  - "axios"
+  - "jszip"
+  - "lucide-react"
+  - "vite"
+  - "tailwindcss"
+  - "autoprefixer"
+  - "postcss"
+
+# Ignore patterns for files that don't need scanning
+ignore:
+  - "dist/**"
+  - "build/**"
+  - "node_modules/**"
+  - "*.log"
+  - "*.tmp"
+  - ".git/**"
+
+# Custom rules for Whirlcrypt-specific security concerns
+customRules:
+  - name: "crypto-package-check"
+    description: "Ensure cryptographic packages are from trusted sources"
+    pattern: "crypto|encrypt|decrypt|hash|cipher"
+    severity: "high"
+    
+  - name: "file-upload-security"
+    description: "Monitor file upload related packages for security issues"
+    pattern: "multer|upload|file"
+    severity: "medium"
+    
+  - name: "database-security"
+    description: "Monitor database packages for SQL injection vulnerabilities"
+    pattern: "pg|postgres|sql|query"
+    severity: "medium"
+
+# Reporting settings
+reporting:
+  format: "json"
+  output: "security-report.json"
+  includeDevDependencies: true
+  includeLicenses: true

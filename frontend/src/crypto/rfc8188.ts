@@ -182,7 +182,7 @@ export class ClientCrypto {
     onProgress?: (progress: number) => void
   ): Promise<Uint8Array> {
     // Debug logging can be enabled for troubleshooting
-    const debug = false;
+    const debug = true;
     if (debug) {
       console.log('🔓 Starting decryption process');
       console.log(`📊 Encrypted data size: ${encryptedData.length} bytes`);
@@ -323,14 +323,20 @@ export class ClientCrypto {
   }
 
   /**
-   * Generate shareable URL with embedded key
+   * Generate shareable URL with embedded key and filename
    */
-  static generateShareUrl(fileId: string, key: Uint8Array, salt: Uint8Array, baseUrl: string): string {
+  static generateShareUrl(fileId: string, key: Uint8Array, salt: Uint8Array, baseUrl: string, filename?: string): string {
     const keyHex = Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('');
     const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    // Keys are embedded in URL fragment (not sent to server)
-    return `${baseUrl}/download/${fileId}#key=${keyHex}&salt=${saltHex}`;
+
+    // Keys and filename are embedded in URL fragment (not sent to server)
+    let fragment = `key=${keyHex}&salt=${saltHex}`;
+    if (filename) {
+      // URL encode the filename to handle special characters
+      fragment += `&filename=${encodeURIComponent(filename)}`;
+    }
+
+    return `${baseUrl}/download/${fileId}#${fragment}`;
   }
 
   /**

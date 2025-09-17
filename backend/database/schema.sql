@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS files (
     max_downloads INTEGER DEFAULT NULL,
     download_count INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT true,
+    encrypted_metadata TEXT, -- Base64 encoded encrypted metadata (Wormhole-inspired)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

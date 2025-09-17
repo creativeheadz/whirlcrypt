@@ -14,6 +14,7 @@ export interface FileMetadata {
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  encryptedMetadata?: string; // Base64 encoded encrypted metadata (Wormhole-inspired)
 }
 
 export interface UploadResponse {

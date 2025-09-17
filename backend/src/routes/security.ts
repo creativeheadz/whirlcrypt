@@ -2,10 +2,17 @@ import { Router, Request, Response } from 'express';
 import { AttackLogger } from '../services/AttackLogger';
 import { BanManager } from '../services/BanManager';
 import { DatabaseConnection } from '../database/connection';
+import { handleCSPViolation } from '../middleware/security';
 
 const router = Router();
 const attackLogger = new AttackLogger();
 const banManager = new BanManager();
+
+/**
+ * CSP Violation Report Endpoint
+ * POST /api/security/csp-report
+ */
+router.post('/csp-report', handleCSPViolation);
 
 /**
  * Get public security dashboard statistics
