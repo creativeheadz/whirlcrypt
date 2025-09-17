@@ -40,8 +40,23 @@ export const cspMiddleware = (req: Request, res: Response, next: NextFunction) =
 
   res.setHeader('Content-Security-Policy', cspDirectives);
 
-  // Also set report-only header for monitoring
-  const reportOnlyDirectives = cspDirectives + "; report-uri /api/security/csp-report";
+  // Also set report-only header for monitoring (without upgrade-insecure-requests)
+  const reportOnlyDirectives = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `style-src 'self' 'nonce-${nonce}'`,
+    "img-src 'self' data: blob:",
+    "connect-src 'self'",
+    "font-src 'self'",
+    "object-src 'none'",
+    "media-src 'self' blob:",
+    "frame-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "block-all-mixed-content",
+    "report-uri /api/security/csp-report"
+  ].join('; ');
   res.setHeader('Content-Security-Policy-Report-Only', reportOnlyDirectives);
 
   next();

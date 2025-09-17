@@ -266,12 +266,12 @@ const UploadPage: React.FC = () => {
       // Generate encryption keys
       const { key, salt } = await ClientCrypto.generateKeys()
 
-      // Encrypt file (ZIP or single file)
+      // Encrypt file (ZIP or single file) with larger record size for better performance
       const encryptedData = await ClientCrypto.encryptFile(
         fileToUpload,
         key,
         salt,
-        4096, // 4KB record size
+        65536, // 64KB record size (16x larger for better performance)
         (progress) => setState(prev => ({
           ...prev,
           progress: 30 + (progress * 0.4) // 40% for encryption (30% to 70%)

@@ -137,10 +137,15 @@ export class ClientCrypto {
       
       const nonce = this.createNonce(nonceBase, seq);
       
-      // Add padding byte for last record
-      const plaintext = isLast ? 
-        new Uint8Array([...chunk, 2]) : 
-        chunk;
+      // Add padding byte for last record (optimized)
+      let plaintext: Uint8Array;
+      if (isLast) {
+        plaintext = new Uint8Array(chunk.length + 1);
+        plaintext.set(chunk);
+        plaintext[chunk.length] = 2;
+      } else {
+        plaintext = chunk;
+      }
       
       // Encrypt chunk
       const encrypted = await crypto.subtle.encrypt(
