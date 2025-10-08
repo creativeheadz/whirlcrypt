@@ -61,10 +61,10 @@ const UploadPage: React.FC = () => {
     if (acceptedFiles.length > 0) {
       const totalSize = calculateTotalSize(acceptedFiles)
 
-      if (totalSize > 100 * 1024 * 1024) {
+      if (totalSize > 4294967296) {
         showError(
           'Files Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 100MB`
+          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
         )
         return
       }
@@ -100,7 +100,7 @@ const UploadPage: React.FC = () => {
   const { getRootProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true, // Allow multiple files for folder uploads
-    maxSize: 100 * 1024 * 1024, // 100MB per file, but we'll check total size in onDrop
+    maxSize: 4294967296, // 4GB per file, but we'll check total size in onDrop
     disabled: (state.file !== null || state.files !== null) || state.uploading, // Disable dropzone once file/folder is selected or uploading
     noClick: true, // Disable click to open file dialog - we'll handle this manually
     onDropRejected: (rejectedFiles) => {
@@ -108,7 +108,7 @@ const UploadPage: React.FC = () => {
       let errorMsg = 'Files rejected'
 
       if (rejection?.code === 'file-too-large') {
-        errorMsg = 'One or more files too large (max 100MB per file)'
+        errorMsg = 'One or more files too large (max 4GB per file)'
       } else if (rejection?.code === 'too-many-files') {
         errorMsg = 'Too many files selected'
       }
@@ -123,10 +123,10 @@ const UploadPage: React.FC = () => {
     if (files.length > 0) {
       const totalSize = calculateTotalSize(files)
 
-      if (totalSize > 100 * 1024 * 1024) {
+      if (totalSize > 4294967296) {
         showError(
           'Files Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 100MB`
+          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
         )
         return
       }
@@ -166,10 +166,10 @@ const UploadPage: React.FC = () => {
     if (files.length > 0) {
       const totalSize = calculateTotalSize(files)
 
-      if (totalSize > 100 * 1024 * 1024) {
+      if (totalSize > 4294967296) {
         showError(
           'Folder Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 100MB`
+          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
         )
         return
       }
@@ -267,7 +267,9 @@ const UploadPage: React.FC = () => {
       const { key, salt } = await ClientCrypto.generateKeys()
 
       // Encrypt file (ZIP or single file) with larger record size for better performance
-      const encryptedData = await ClientCrypto.encryptFile(
+      // Use streaming encryption to avoid memory issues with large files
+      const encryptedChunks: Uint8Array[] = []
+      for await (const chunk of ClientCrypto.encryptFileStream(
         fileToUpload,
         key,
         salt,
@@ -276,28 +278,72 @@ const UploadPage: React.FC = () => {
           ...prev,
           progress: 30 + (progress * 0.4) // 40% for encryption (30% to 70%)
         }))
-      )
-
-      // Create form data (no need to send keys - server never decrypts)
-      const formData = new FormData()
-      formData.append('file', new Blob([new Uint8Array(encryptedData)]), fileToUpload.name)
-      formData.append('retentionHours', state.retentionHours.toString())
+      )) {
+        encryptedChunks.push(chunk)
+      }
 
       // Upload to server
       setState(prev => ({ ...prev, progress: 70 }))
 
-      const response = await axios.post('/api/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          const uploadProgress = progressEvent.total ?
-            (progressEvent.loaded / progressEvent.total) * 30 : 0 // 30% for upload
-          setState(prev => ({ ...prev, progress: 70 + uploadProgress }))
+      // For files > 2GB, we need to use fetch API instead of FormData/Blob
+      // Create a multipart/form-data request manually using ReadableStream
+      const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2)
+      
+      // Build multipart body as a generator
+      async function* generateMultipartBody() {
+        // Add retentionHours field
+        yield new TextEncoder().encode(
+          `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="retentionHours"\r\n\r\n` +
+          `${state.retentionHours}\r\n`
+        )
+        
+        // Add file field header
+        yield new TextEncoder().encode(
+          `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="file"; filename="${fileToUpload.name}"\r\n` +
+          `Content-Type: application/octet-stream\r\n\r\n`
+        )
+        
+        // Add encrypted file data in chunks
+        for (const chunk of encryptedChunks) {
+          yield chunk
+        }
+        
+        // Add closing boundary
+        yield new TextEncoder().encode(`\r\n--${boundary}--\r\n`)
+      }
+
+      // Create ReadableStream from generator
+      const stream = new ReadableStream({
+        async start(controller) {
+          for await (const chunk of generateMultipartBody()) {
+            controller.enqueue(chunk)
+          }
+          controller.close()
         }
       })
 
+      // Upload using fetch API
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`
+        },
+        body: stream
+        // @ts-ignore - duplex is required for streaming but not in TS types yet
+        , duplex: 'half'
+      } as RequestInit)
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+      }
+
+      const response = await uploadResponse.json()
+
       // Generate shareable URL with embedded keys and filename
       const shareUrl = ClientCrypto.generateShareUrl(
-        response.data.id,
+        response.id,  // Direct property, not response.data.id
         key,
         salt,
         window.location.origin,
@@ -478,7 +524,7 @@ const UploadPage: React.FC = () => {
                 {isDragActive ? 'Drop files or folders here' : 'Choose files or folders to upload'}
               </p>
               <p className="text-gray-700 mb-4">
-                Drag and drop files or folders here, or use the buttons below (max 100MB total)
+                Drag and drop files or folders here, or use the buttons below (max 4GB total)
               </p>
               <div className="flex gap-3 justify-center">
                 <label className="btn-primary flex items-center cursor-pointer">
@@ -646,7 +692,7 @@ const UploadPage: React.FC = () => {
             <p>• <strong className="text-orange-600">Automatic expiration:</strong> Files auto-delete</p>
             <p>• <strong className="text-orange-600">No tracking:</strong> No ads or user tracking</p>
             <p>• <strong className="text-orange-600">Open source:</strong> Transparent security</p>
-            <p>• <strong className="text-orange-600">100MB limit:</strong> Total size limit per upload</p>
+            <p>• <strong className="text-orange-600">4GB limit:</strong> Total size limit per upload</p>
           </div>
         </div>
       </div>

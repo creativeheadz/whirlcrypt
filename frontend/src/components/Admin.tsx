@@ -46,7 +46,7 @@ const Admin: React.FC = () => {
   const [configForm, setConfigForm] = useState({
     defaultRetentionHours: 24,
     maxRetentionHours: 168,
-    maxFileSize: 104857600 // 100MB
+    maxFileSize: 4294967296 // 100MB
   })
 
   const [configSaving, setConfigSaving] = useState(false)

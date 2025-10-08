@@ -32,10 +32,10 @@ export class ClientCrypto {
    * HKDF implementation using Web Crypto API
    */
   private static async hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-    // Import the input key material
+    // Import the input key material - cast to BufferSource for type compatibility
     const key = await crypto.subtle.importKey(
       'raw',
-      ikm,
+      ikm as BufferSource,
       { name: 'HKDF' },
       false,
       ['deriveBits']
@@ -46,8 +46,8 @@ export class ClientCrypto {
       {
         name: 'HKDF',
         hash: 'SHA-256',
-        salt,
-        info
+        salt: salt as BufferSource,
+        info: info as BufferSource
       },
       key,
       length * 8
@@ -89,6 +89,86 @@ export class ClientCrypto {
   }
 
   /**
+   * Encrypt file using RFC 8188 - Streaming version to avoid memory issues with large files
+   */
+  static async* encryptFileStream(
+    file: File, 
+    key: Uint8Array, 
+    salt: Uint8Array, 
+    recordSize: number = DEFAULT_RECORD_SIZE,
+    onProgress?: (progress: number) => void
+  ): AsyncGenerator<Uint8Array, void, unknown> {
+    const contentKey = await this.deriveKey(salt, key);
+    const nonceBase = await this.deriveNonce(salt, key);
+
+    // Create header
+    const header = new Uint8Array(SALT_LENGTH + 5 + 0); // 0 keyid length
+    header.set(salt, 0);
+    
+    // Record size as 4-byte big-endian
+    const recordSizeView = new DataView(header.buffer, SALT_LENGTH, 4);
+    recordSizeView.setUint32(0, recordSize, false);
+    
+    // KeyId length (0)
+    header[SALT_LENGTH + 4] = 0;
+
+    // Yield header first
+    yield header;
+
+    const fileSize = file.size;
+    let seq = 0;
+    let offset = 0;
+
+    // Import key for AES-GCM
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      contentKey as BufferSource,
+      { name: this.ALGORITHM },
+      false,
+      ['encrypt']
+    );
+
+    while (offset < fileSize) {
+      const isLast = offset + recordSize >= fileSize;
+      const chunkSize = isLast ? fileSize - offset : recordSize;
+      
+      // Read chunk from file
+      const chunk = new Uint8Array(
+        await file.slice(offset, offset + chunkSize).arrayBuffer()
+      );
+      
+      const nonce = this.createNonce(nonceBase, seq);
+      
+      // Add padding byte for last record (optimized)
+      let plaintext: Uint8Array;
+      if (isLast) {
+        plaintext = new Uint8Array(chunk.length + 1);
+        plaintext.set(chunk);
+        plaintext[chunk.length] = 2;
+      } else {
+        plaintext = chunk;
+      }
+      
+      // Encrypt chunk - cast to BufferSource for type compatibility
+      const encrypted = await crypto.subtle.encrypt(
+        { name: this.ALGORITHM, iv: nonce as BufferSource },
+        cryptoKey,
+        plaintext as BufferSource
+      );
+      
+      // Yield encrypted chunk
+      yield new Uint8Array(encrypted);
+      
+      offset += chunkSize;
+      seq++;
+      
+      if (onProgress) {
+        onProgress((offset / fileSize) * 100);
+      }
+    }
+  }
+
+  /**
    * Encrypt file using RFC 8188
    */
   static async encryptFile(
@@ -120,7 +200,7 @@ export class ClientCrypto {
     // Import key for AES-GCM
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      contentKey,
+      contentKey as BufferSource,
       { name: this.ALGORITHM },
       false,
       ['encrypt']
@@ -147,11 +227,11 @@ export class ClientCrypto {
         plaintext = chunk;
       }
       
-      // Encrypt chunk
+      // Encrypt chunk - cast to BufferSource for type compatibility
       const encrypted = await crypto.subtle.encrypt(
-        { name: this.ALGORITHM, iv: nonce },
+        { name: this.ALGORITHM, iv: nonce as BufferSource },
         cryptoKey,
-        plaintext
+        plaintext as BufferSource
       );
       
       chunks.push(new Uint8Array(encrypted));
@@ -178,7 +258,167 @@ export class ClientCrypto {
   }
 
   /**
-   * Decrypt data using RFC 8188 format
+   * Decrypt data from a ReadableStream using RFC 8188 format - True streaming version
+   */
+  static async decryptStream(
+    stream: ReadableStream<Uint8Array>,
+    key: Uint8Array,
+    salt: Uint8Array,
+    onProgress?: (downloaded: number, decrypted: number) => void
+  ): Promise<Uint8Array> {
+    const reader = stream.getReader();
+    let buffer = new Uint8Array(0);
+    let headerParsed = false;
+    let recordSize = 0;
+    let headerLength = 0;
+    let contentKey: Uint8Array | null = null;
+    let nonceBase: Uint8Array | null = null;
+    let cryptoKey: CryptoKey | null = null;
+    
+    const decryptedChunks: Uint8Array[] = [];
+    let totalDecryptedSize = 0;
+    let seq = 0;
+    let totalDownloaded = 0;
+    
+    const tagLength = 16; // AES-GCM tag length
+    
+    // Helper to append data to buffer
+    const appendToBuffer = (newData: Uint8Array): void => {
+      const newBuffer = new Uint8Array(buffer.length + newData.length);
+      newBuffer.set(buffer);
+      newBuffer.set(newData, buffer.length);
+      buffer = newBuffer;
+    };
+    
+    // Read stream chunk by chunk
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (value) {
+        appendToBuffer(value);
+        totalDownloaded += value.length;
+      }
+      
+      // Parse header if not yet done
+      if (!headerParsed && buffer.length >= SALT_LENGTH + 5) {
+        const headerSalt = buffer.slice(0, SALT_LENGTH);
+        const recordSizeView = new DataView(buffer.buffer, buffer.byteOffset + SALT_LENGTH, 4);
+        recordSize = recordSizeView.getUint32(0, false);
+        const keyIdLength = buffer[SALT_LENGTH + 4];
+        headerLength = SALT_LENGTH + 5 + keyIdLength;
+        
+        // Validate salt
+        if (headerSalt.length !== salt.length) {
+          throw new Error('Invalid encryption keys: salt length mismatch');
+        }
+        for (let i = 0; i < salt.length; i++) {
+          if (headerSalt[i] !== salt[i]) {
+            throw new Error('Invalid encryption keys: salt mismatch');
+          }
+        }
+        
+        // Derive keys
+        contentKey = await this.deriveKey(salt, key);
+        nonceBase = await this.deriveNonce(salt, key);
+        
+        // Import crypto key
+        cryptoKey = await crypto.subtle.importKey(
+          'raw',
+          contentKey as BufferSource,
+          { name: this.ALGORITHM },
+          false,
+          ['decrypt']
+        );
+        
+        headerParsed = true;
+        
+        // Remove header from buffer
+        buffer = buffer.slice(headerLength);
+      }
+      
+      // Process complete chunks in buffer
+      if (headerParsed && cryptoKey && nonceBase) {
+        // Process chunks while we have enough data
+        while (buffer.length >= recordSize + tagLength) {
+          const chunkSize = recordSize + tagLength;
+          const encryptedChunk = buffer.slice(0, chunkSize);
+          const nonce = this.createNonce(nonceBase, seq);
+          
+          try {
+            const decrypted = await crypto.subtle.decrypt(
+              { name: this.ALGORITHM, iv: nonce as BufferSource },
+              cryptoKey,
+              encryptedChunk as BufferSource
+            );
+            
+            let decryptedArray = new Uint8Array(decrypted);
+            
+            // Don't remove padding yet - we'll handle it at the end
+            decryptedChunks.push(decryptedArray);
+            totalDecryptedSize += decryptedArray.length;
+            
+            buffer = buffer.slice(chunkSize);
+            seq++;
+            
+            if (onProgress) {
+              onProgress(totalDownloaded, totalDecryptedSize);
+            }
+          } catch (decryptError: any) {
+            throw new Error(`Decryption failed at chunk ${seq}: ${decryptError.message}`);
+          }
+        }
+      }
+      
+      if (done) {
+        // Process final chunk (might be smaller or have padding)
+        if (headerParsed && cryptoKey && nonceBase && buffer.length > tagLength) {
+          const encryptedChunk = buffer;
+          const nonce = this.createNonce(nonceBase, seq);
+          
+          try {
+            const decrypted = await crypto.subtle.decrypt(
+              { name: this.ALGORITHM, iv: nonce as BufferSource },
+              cryptoKey,
+              encryptedChunk as BufferSource
+            );
+            
+            let decryptedArray = new Uint8Array(decrypted);
+            
+            // Remove padding from last chunk
+            if (decryptedArray.length > 0) {
+              const lastByte = decryptedArray[decryptedArray.length - 1];
+              if (lastByte === 2) {
+                decryptedArray = decryptedArray.slice(0, -1);
+              }
+            }
+            
+            decryptedChunks.push(decryptedArray);
+            totalDecryptedSize += decryptedArray.length;
+            
+            if (onProgress) {
+              onProgress(totalDownloaded, totalDecryptedSize);
+            }
+          } catch (decryptError: any) {
+            throw new Error(`Decryption failed at final chunk: ${decryptError.message}`);
+          }
+        }
+        break;
+      }
+    }
+    
+    // Combine all decrypted chunks
+    const result = new Uint8Array(totalDecryptedSize);
+    let position = 0;
+    for (const chunk of decryptedChunks) {
+      result.set(chunk, position);
+      position += chunk.length;
+    }
+    
+    return result;
+  }
+
+  /**
+   * Decrypt data using RFC 8188 format - Memory optimized version
    */
   static async decryptData(
     encryptedData: Uint8Array,
@@ -187,7 +427,7 @@ export class ClientCrypto {
     onProgress?: (progress: number) => void
   ): Promise<Uint8Array> {
     // Debug logging can be enabled for troubleshooting
-    const debug = true;
+    const debug = false;
     if (debug) {
       console.log('🔓 Starting decryption process');
       console.log(`📊 Encrypted data size: ${encryptedData.length} bytes`);
@@ -199,7 +439,7 @@ export class ClientCrypto {
     }
 
     const headerSalt = encryptedData.slice(0, SALT_LENGTH);
-    const recordSizeView = new DataView(encryptedData.buffer, SALT_LENGTH, 4);
+    const recordSizeView = new DataView(encryptedData.buffer, encryptedData.byteOffset + SALT_LENGTH, 4);
     const recordSize = recordSizeView.getUint32(0, false);
     const keyIdLength = encryptedData[SALT_LENGTH + 4];
 
@@ -233,24 +473,27 @@ export class ClientCrypto {
     // Import key for AES-GCM
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      contentKey,
+      contentKey as BufferSource,
       { name: this.ALGORITHM },
       false,
       ['decrypt']
     );
 
-    const chunks: Uint8Array[] = [];
+    const tagLength = 16; // AES-GCM tag length
+    
+    // Use a temporary array to collect decrypted chunks, then combine once
+    const decryptedChunks: Uint8Array[] = [];
+    let totalDecryptedSize = 0;
     let seq = 0;
     let offset = headerLength;
-    let totalChunks = 0;
 
     if (debug) {
       console.log(`🔄 Starting chunk decryption from offset ${offset}`);
     }
 
+    // Decrypt all chunks first
     while (offset < encryptedData.length) {
       const remainingData = encryptedData.length - offset;
-      const tagLength = 16; // AES-GCM tag length
       const isLastChunk = remainingData <= recordSize + tagLength + 1; // +1 for potential padding
 
       // Last chunk might have padding, so it can be up to recordSize + 1 + tagLength
@@ -270,11 +513,11 @@ export class ClientCrypto {
 
       let decryptedArray: Uint8Array;
       try {
-        // Decrypt chunk
+        // Decrypt chunk - cast nonce to BufferSource for type compatibility
         const decrypted = await crypto.subtle.decrypt(
-          { name: this.ALGORITHM, iv: nonce },
+          { name: this.ALGORITHM, iv: nonce as BufferSource },
           cryptoKey,
-          encryptedChunk
+          encryptedChunk as BufferSource
         );
 
         decryptedArray = new Uint8Array(decrypted);
@@ -291,13 +534,12 @@ export class ClientCrypto {
       if (isLast && decryptedArray.length > 0) {
         const lastByte = decryptedArray[decryptedArray.length - 1];
         if (lastByte === 2) {
-          chunks.push(decryptedArray.slice(0, -1));
-        } else {
-          chunks.push(decryptedArray);
+          decryptedArray = decryptedArray.slice(0, -1);
         }
-      } else {
-        chunks.push(decryptedArray);
       }
+      
+      decryptedChunks.push(decryptedArray);
+      totalDecryptedSize += decryptedArray.length;
       
       offset += expectedChunkSize;
       seq++;
@@ -307,23 +549,19 @@ export class ClientCrypto {
       }
     }
 
-    // Combine all chunks
-    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    if (debug) {
-      console.log(`🔗 Combining ${chunks.length} chunks into ${totalLength} bytes`);
-    }
-
-    const result = new Uint8Array(totalLength);
-    let position = 0;
-
-    for (const chunk of chunks) {
-      result.set(chunk, position);
-      position += chunk.length;
+    // Now combine all chunks into final result (single allocation)
+    const result = new Uint8Array(totalDecryptedSize);
+    let resultPosition = 0;
+    for (const chunk of decryptedChunks) {
+      result.set(chunk, resultPosition);
+      resultPosition += chunk.length;
     }
 
     if (debug) {
-      console.log('🎉 Decryption completed successfully');
+      console.log(`🎉 Decryption completed successfully: ${totalDecryptedSize} bytes`);
     }
+    
+    // Return the combined result
     return result;
   }
 
@@ -363,6 +601,89 @@ export class ClientCrypto {
       return { key, salt };
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Decrypt data from a ReadableStream using RFC 8188 format - True streaming version
+   */
+  static async decryptStreamToSink(
+    stream: ReadableStream<Uint8Array>,
+    key: Uint8Array,
+    salt: Uint8Array,
+    sink: { onChunk: (chunk: Uint8Array) => Promise<void> | void; onComplete?: () => Promise<void> | void },
+    onProgress?: (downloaded: number, decrypted: number) => void
+  ): Promise<void> {
+    const reader = stream.getReader();
+    let buffer = new Uint8Array(0);
+    let headerParsed = false;
+    let recordSize = 0;
+    let headerLength = 0;
+    let contentKey: Uint8Array | null = null;
+    let nonceBase: Uint8Array | null = null;
+    let cryptoKey: CryptoKey | null = null;
+    let seq = 0;
+    let totalDownloaded = 0;
+    let totalDecrypted = 0;
+    const tagLength = 16;
+
+    const append = (data: Uint8Array) => {
+      const merged = new Uint8Array(buffer.length + data.length);
+      merged.set(buffer);
+      merged.set(data, buffer.length);
+      buffer = merged;
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (value) {
+        append(value);
+        totalDownloaded += value.length;
+      }
+
+      if (!headerParsed && buffer.length >= SALT_LENGTH + 5) {
+        const headerSalt = buffer.slice(0, SALT_LENGTH);
+        const recordSizeView = new DataView(buffer.buffer, buffer.byteOffset + SALT_LENGTH, 4);
+        recordSize = recordSizeView.getUint32(0, false);
+        const keyIdLength = buffer[SALT_LENGTH + 4];
+        headerLength = SALT_LENGTH + 5 + keyIdLength;
+        // Validate salt
+        if (headerSalt.length !== salt.length) throw new Error('Invalid encryption keys: salt length mismatch');
+        for (let i = 0; i < salt.length; i++) if (headerSalt[i] !== salt[i]) throw new Error('Invalid encryption keys: salt mismatch');
+        contentKey = await this.deriveKey(salt, key);
+        nonceBase = await this.deriveNonce(salt, key);
+        cryptoKey = await crypto.subtle.importKey('raw', contentKey as BufferSource, { name: this.ALGORITHM }, false, ['decrypt']);
+        headerParsed = true;
+        buffer = buffer.slice(headerLength);
+      }
+
+      if (headerParsed && cryptoKey && nonceBase) {
+        while (buffer.length >= recordSize + tagLength) {
+          const enc = buffer.slice(0, recordSize + tagLength);
+          const nonce = this.createNonce(nonceBase, seq);
+          const decrypted = await crypto.subtle.decrypt({ name: this.ALGORITHM, iv: nonce as BufferSource }, cryptoKey, enc as BufferSource);
+          let plain = new Uint8Array(decrypted);
+          totalDecrypted += plain.length;
+          await sink.onChunk(plain);
+          buffer = buffer.slice(recordSize + tagLength);
+          seq++;
+          if (onProgress) onProgress(totalDownloaded, totalDecrypted);
+        }
+      }
+
+      if (done) {
+        if (headerParsed && cryptoKey && nonceBase && buffer.length > tagLength) {
+          const nonce = this.createNonce(nonceBase, seq);
+          const decrypted = await crypto.subtle.decrypt({ name: this.ALGORITHM, iv: nonce as BufferSource }, cryptoKey, buffer as BufferSource);
+          let plain = new Uint8Array(decrypted);
+          if (plain.length && plain[plain.length - 1] === 2) plain = plain.slice(0, -1);
+          totalDecrypted += plain.length;
+          await sink.onChunk(plain);
+          if (onProgress) onProgress(totalDownloaded, totalDecrypted);
+        }
+        if (sink.onComplete) await sink.onComplete();
+        return;
+      }
     }
   }
 }

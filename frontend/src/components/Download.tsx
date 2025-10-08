@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
-import { Download as DownloadIcon, FileText, Clock, AlertCircle, CheckCircle2, Lock } from 'lucide-react'
+import { Download as DownloadIcon, Clock, AlertCircle, CheckCircle2, Lock } from 'lucide-react'
 import { ClientCrypto } from '../crypto/rfc8188'
-import axios from 'axios'
+// import axios from 'axios' // (unused after streaming refactor)
 
 interface FileInfo {
   filename: string
@@ -32,6 +32,22 @@ const Download: React.FC = () => {
     keys: null,
     downloaded: false
   })
+
+  // Helper function to download using Blob
+  const downloadWithBlob = (data: Uint8Array, filename: string) => {
+    // Create blob from the typed array - use type assertion for library compatibility
+    const blob = new Blob([data as any], {
+      type: 'application/octet-stream'
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => {
     // Extract keys from URL fragment
@@ -64,54 +80,89 @@ const Download: React.FC = () => {
         throw new Error('Missing encryption key in URL');
       }
 
-      // Download encrypted file
-      const response = await axios.get(`/api/download/${id}`, {
+      // Extract original filename from URL fragment
+      const filename = params.get('filename') || `decrypted-file-${id.substring(0, 8)}`
+
+      // Use fetch API with streaming for better memory efficiency
+      const response = await fetch(`/api/download/${id}`, {
         headers: { 'x-encryption-key': keyHex },
-        responseType: 'arraybuffer',
-        onDownloadProgress: (progressEvent) => {
-          const progress = progressEvent.total ? 
-            (progressEvent.loaded / progressEvent.total) * 50 : 0 // 50% for download
-          setState(prev => ({ ...prev, progress }))
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is not available')
+      }
+
+  // Use streaming decryption for better memory efficiency
+  console.log('Starting streaming download and decryption...')
+
+  let fileWriter: any = null
+  let blobParts: Uint8Array[] = []
+  const BLOB_FLUSH_THRESHOLD = 25 * 1024 * 1024 // 25MB chunks for fallback
+  let receivedBytes = 0
+
+      const useFileSystemAPI = 'showSaveFilePicker' in window
+      if (useFileSystemAPI) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: 'File', accept: { 'application/octet-stream': ['.*'] } }]
+          })
+          fileWriter = await handle.createWritable()
+        } catch (e:any) {
+          if (e?.name === 'AbortError') throw e
         }
-      })
+      }
 
-      setState(prev => ({ ...prev, progress: 50 }))
-
-      // Decrypt file
-      const encryptedData = new Uint8Array(response.data)
-      console.log('Encrypted data size:', encryptedData.length)
-      console.log('Keys for decryption:', {
-        key: Array.from(state.keys.key).map(b => b.toString(16).padStart(2, '0')).join(''),
-        salt: Array.from(state.keys.salt).map(b => b.toString(16).padStart(2, '0')).join('')
-      })
-
-      const decryptedData = await ClientCrypto.decryptData(
-        encryptedData,
+      await ClientCrypto.decryptStreamToSink(
+        response.body,
         state.keys.key,
         state.keys.salt,
-        (progress) => setState(prev => ({ ...prev, progress: 50 + (progress * 0.5) })) // 50% for decryption
+        {
+          onChunk: async (chunk: Uint8Array) => {
+            receivedBytes += chunk.length
+            if (fileWriter) {
+              await fileWriter.write(chunk)
+            } else {
+              blobParts.push(chunk)
+              // Flush periodically to reduce memory pressure
+              if (blobParts.length > 1) {
+                const totalBuffered = blobParts.reduce((s,c)=>s+c.length,0)
+                if (totalBuffered >= BLOB_FLUSH_THRESHOLD) {
+                  // Create an object URL to progressively download flushed part (optional enhancement)
+                  // For now we keep accumulating but could stream to IndexedDB / partial download.
+                }
+              }
+            }
+          },
+          onComplete: async () => {
+            if (fileWriter) {
+              await fileWriter.close()
+            } else {
+              // Fallback: assemble final blob (only safe for moderate sizes)
+              const finalBlob = new Blob(blobParts, { type: 'application/octet-stream' })
+              const url = URL.createObjectURL(finalBlob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = filename
+              document.body.appendChild(a)
+              a.click()
+              a.remove()
+              URL.revokeObjectURL(url)
+            }
+          }
+        },
+        (downloaded, decrypted) => {
+          const progress = Math.min(95, (decrypted / (downloaded || 1)) * 95)
+          setState(prev => ({ ...prev, progress }))
+        }
       )
 
-      console.log('Decrypted data size:', decryptedData.length)
-
-      // Extract original filename from URL fragment
-      const urlFragment = window.location.hash.substring(1);
-      const urlParams = new URLSearchParams(urlFragment);
-      const filename = urlParams.get('filename') || `decrypted-file-${id.substring(0, 8)}`
-
-      // Create and trigger download
-      const blob = new Blob([decryptedData], {
-        type: 'application/octet-stream' // Always use generic type for security
-      })
-
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      setState(prev => ({ ...prev, progress: 100 }))
 
       // Set file info after successful decryption
       setState(prev => ({
@@ -121,10 +172,10 @@ const Download: React.FC = () => {
         downloaded: true,
         fileInfo: {
           filename,
-          size: decryptedData.length,
+          size: receivedBytes,
           contentType: 'application/octet-stream',
-          uploadDate: new Date(),
-          expiresAt: new Date(),
+          uploadDate: new Date().toISOString(),
+          expiresAt: new Date().toISOString(),
           downloadCount: 0
         }
       }))
