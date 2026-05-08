@@ -92,9 +92,10 @@ public
 tmp/
 temp/
 
-# Uploaded files (adjust path as needed)
-backend/uploads/*
-!backend/uploads/.gitkeep
+# Uploaded files — encrypted user blobs must never be committed.
+# Pattern matches an "uploads" directory anywhere in the tree (root or nested).
+uploads/
+!**/uploads/.gitkeep
 
 # IDE and editor files
 .vscode/
