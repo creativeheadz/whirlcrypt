@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { DatabaseConnection } from '../database/connection';
 import { AttackInfo } from '../middleware/attackDetection';
+import logger from '../utils/logger';
 
 export interface AttackLogEntry {
   id: string;
@@ -60,9 +61,9 @@ export class AttackLogger {
 
     try {
       await this.pool.query(query, values);
-      console.log(`🚨 Attack logged: ${attackInfo.ip} -> ${attackInfo.path} (${attackInfo.category})`);
+      logger.info(`Attack logged: ${attackInfo.ip} -> ${attackInfo.path} (${attackInfo.category})`);
     } catch (error) {
-      console.error('Error logging attack:', error);
+      logger.error({ err: error }, 'Error logging attack');
     }
   }
 
@@ -94,7 +95,7 @@ export class AttackLogger {
     try {
       await this.pool.query(query, values);
     } catch (error) {
-      console.error('Error logging 404:', error);
+      logger.error({ err: error }, 'Error logging 404');
     }
   }
 
@@ -105,16 +106,16 @@ export class AttackLogger {
     const query = `
       SELECT COUNT(*) as count
       FROM attack_logs
-      WHERE ip = $1 
-      AND timestamp > NOW() - INTERVAL '${minutesBack} minutes'
+      WHERE ip = $1
+      AND timestamp > NOW() - make_interval(mins => $2)
       AND response_code = 404
     `;
 
     try {
-      const result = await this.pool.query(query, [ip]);
+      const result = await this.pool.query(query, [ip, minutesBack]);
       return parseInt(result.rows[0].count);
     } catch (error) {
-      console.error('Error getting recent attempts:', error);
+      logger.error({ err: error }, 'Error getting recent attempts');
       return 0;
     }
   }
@@ -188,7 +189,7 @@ export class AttackLogger {
         }))
       };
     } catch (error) {
-      console.error('Error getting attack stats:', error);
+      logger.error({ err: error }, 'Error getting attack stats');
       return {
         totalAttacks: 0,
         attacksToday: 0,
@@ -205,23 +206,23 @@ export class AttackLogger {
    */
   async getAttacksByTime(hours: number = 24): Promise<Array<{ hour: string; count: number }>> {
     const query = `
-      SELECT 
+      SELECT
         DATE_TRUNC('hour', timestamp) as hour,
         COUNT(*) as count
       FROM attack_logs
-      WHERE timestamp > NOW() - INTERVAL '${hours} hours'
+      WHERE timestamp > NOW() - make_interval(hours => $1)
       GROUP BY DATE_TRUNC('hour', timestamp)
       ORDER BY hour
     `;
 
     try {
-      const result = await this.pool.query(query);
+      const result = await this.pool.query(query, [hours]);
       return result.rows.map(row => ({
         hour: row.hour.toISOString(),
         count: parseInt(row.count)
       }));
     } catch (error) {
-      console.error('Error getting attacks by time:', error);
+      logger.error({ err: error }, 'Error getting attacks by time');
       return [];
     }
   }
@@ -245,7 +246,7 @@ export class AttackLogger {
         count: parseInt(row.count)
       }));
     } catch (error) {
-      console.error('Error getting attacks by country:', error);
+      logger.error({ err: error }, 'Error getting attacks by country');
       return [];
     }
   }
@@ -266,7 +267,7 @@ export class AttackLogger {
         return country.trim();
       }
     } catch (error) {
-      console.error('Error getting country for IP:', error);
+      logger.error({ err: error }, 'Error getting country for IP');
     }
     */
     
@@ -287,12 +288,12 @@ export class AttackLogger {
       const deletedCount = result.rowCount || 0;
       
       if (deletedCount > 0) {
-        console.log(`🧹 Cleaned up ${deletedCount} old attack logs`);
+        logger.info(`Cleaned up ${deletedCount} old attack logs`);
       }
       
       return deletedCount;
     } catch (error) {
-      console.error('Error cleaning up old logs:', error);
+      logger.error({ err: error }, 'Error cleaning up old logs');
       return 0;
     }
   }

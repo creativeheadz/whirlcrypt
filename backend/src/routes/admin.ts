@@ -3,6 +3,7 @@ import { config } from '../config/config';
 import { getFileManager } from '../services/fileManagerService';
 import { requireAuth, logAction, withAuth, AuthenticatedRequest } from '../auth/middleware';
 import { certificateMonitoringJob } from '../jobs/certificateMonitoring';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -45,7 +46,7 @@ router.get('/stats', requireAuth, logAction('VIEW_STATS'), withAuth(async (req: 
     });
 
   } catch (error) {
-    console.error('Stats error:', error);
+    logger.error({ err: error }, 'Stats error');
     const message = error instanceof Error ? error.message : 'Failed to get stats';
     res.status(500).json({ error: message });
   }
@@ -66,7 +67,7 @@ router.post('/cleanup', requireAuth, logAction('CLEANUP_FILES'), withAuth(async 
     });
     
   } catch (error) {
-    console.error('Cleanup error:', error);
+    logger.error({ err: error }, 'Cleanup error');
     const message = error instanceof Error ? error.message : 'Cleanup failed';
     res.status(500).json({ error: message });
   }
@@ -113,7 +114,7 @@ router.put('/config', requireAuth, logAction('UPDATE_CONFIG'), withAuth((req: Au
     });
     
   } catch (error) {
-    console.error('Config update error:', error);
+    logger.error({ err: error }, 'Config update error');
     const message = error instanceof Error ? error.message : 'Failed to update config';
     res.status(500).json({ error: message });
   }
@@ -138,7 +139,7 @@ router.get('/ct-monitor/status', requireAuth, logAction('VIEW_CT_MONITOR'), with
     });
 
   } catch (error) {
-    console.error('CT monitor status error:', error);
+    logger.error({ err: error }, 'CT monitor status error');
     const message = error instanceof Error ? error.message : 'Failed to get CT monitor status';
     res.status(500).json({ error: message });
   }
@@ -152,7 +153,7 @@ router.post('/ct-monitor/run', requireAuth, logAction('RUN_CT_MONITOR'), withAut
   try {
     // Run monitoring in background
     certificateMonitoringJob.forceRun().catch(error => {
-      console.error('Background CT monitoring failed:', error);
+      logger.error({ err: error }, 'Background CT monitoring failed');
     });
 
     res.json({
@@ -161,7 +162,7 @@ router.post('/ct-monitor/run', requireAuth, logAction('RUN_CT_MONITOR'), withAut
     });
 
   } catch (error) {
-    console.error('CT monitor run error:', error);
+    logger.error({ err: error }, 'CT monitor run error');
     const message = error instanceof Error ? error.message : 'Failed to run CT monitor';
     res.status(500).json({ error: message });
   }
@@ -187,7 +188,7 @@ router.post('/ct-monitor/domains', requireAuth, logAction('ADD_CT_DOMAIN'), with
     });
 
   } catch (error) {
-    console.error('CT monitor add domain error:', error);
+    logger.error({ err: error }, 'CT monitor add domain error');
     const message = error instanceof Error ? error.message : 'Failed to add domain';
     res.status(500).json({ error: message });
   }

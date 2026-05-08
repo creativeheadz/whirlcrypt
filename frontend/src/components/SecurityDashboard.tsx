@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Eye, Globe, Clock, Trophy, Zap, AlertTriangle, Activity } from 'lucide-react';
+import { Shield, Eye, Globe, Zap, AlertTriangle, Activity } from 'lucide-react';
 
 interface SecurityStats {
   totalAttacks: number;
@@ -10,67 +10,18 @@ interface SecurityStats {
   lastUpdated: string;
 }
 
-interface WallOfShameEntry {
-  maskedIP: string;
-  country?: string;
-  countryFlag?: string;
-  reason: string;
-  category: string;
-  offendingRequest: string;
-  bannedAt: string;
-  expiresAt?: string;
-  timeLeft?: string;
-  sarcasticComment: string;
-}
-
-interface WallOfShameData {
-  permanentBans: WallOfShameEntry[];
-  temporaryBans: WallOfShameEntry[];
-  statistics: {
-    totalPermanentBans: number;
-    totalTemporaryBans: number;
-    totalBans: number;
-  };
-}
-
-interface Achievement {
-  title: string;
-  description: string;
-  winner: string;
-  count?: number;
-  uniquePaths?: number;
-  attacksPerSecond?: string;
-  icon: string;
-}
-
 const SecurityDashboard: React.FC = () => {
   const [stats, setStats] = useState<SecurityStats | null>(null);
-  const [wallOfShame, setWallOfShame] = useState<WallOfShameData | null>(null);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSecurityData = async () => {
     try {
-      const [statsRes, wallRes, achievementsRes] = await Promise.all([
-        fetch('/api/security/stats'),
-        fetch('/api/security/wall-of-shame'),
-        fetch('/api/security/achievements')
-      ]);
+      const statsRes = await fetch('/api/security/stats');
 
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats(statsData.data);
-      }
-
-      if (wallRes.ok) {
-        const wallData = await wallRes.json();
-        setWallOfShame(wallData.data);
-      }
-
-      if (achievementsRes.ok) {
-        const achievementsData = await achievementsRes.json();
-        setAchievements(achievementsData.data.achievements);
       }
 
       setLoading(false);
@@ -82,7 +33,7 @@ const SecurityDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchSecurityData();
-    const interval = setInterval(fetchSecurityData, 30000); // Update every 30 seconds
+    const interval = setInterval(fetchSecurityData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -134,7 +85,7 @@ const SecurityDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 relative overflow-hidden">
-      {/* Animated Background - Match Frontend */}
+      {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-orange-200/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-orange-300/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
@@ -146,8 +97,8 @@ const SecurityDashboard: React.FC = () => {
         <div className="text-center mb-12">
           <div className="card p-8 mb-8">
             <Shield className="w-16 h-16 text-orange-600 mx-auto mb-4" />
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">🛡️ Whirlcrypt Security Center</h1>
-            <p className="text-gray-600 text-lg">Real-time attack monitoring and the infamous Wall of Shame</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">Whirlcrypt Security Center</h1>
+            <p className="text-gray-600 text-lg">Real-time attack monitoring and threat detection</p>
             <div className="flex items-center justify-center mt-4 text-sm text-gray-500">
               <Activity className="w-4 h-4 mr-2" />
               Last updated: {stats?.lastUpdated ? new Date(stats.lastUpdated).toLocaleTimeString() : 'Never'}
@@ -157,11 +108,11 @@ const SecurityDashboard: React.FC = () => {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
             <div className="card p-6 text-center hover:scale-105 transition-transform duration-300">
               <Eye className="w-8 h-8 text-red-500 mx-auto mb-3" />
               <div className="text-3xl font-bold text-gray-900 mb-1">{stats.totalAttacks}</div>
-              <div className="text-gray-600 text-sm">Total Attacks</div>
+              <div className="text-gray-600 text-sm">Total Attacks Blocked</div>
             </div>
 
             <div className="card p-6 text-center hover:scale-105 transition-transform duration-300">
@@ -173,13 +124,7 @@ const SecurityDashboard: React.FC = () => {
             <div className="card p-6 text-center hover:scale-105 transition-transform duration-300">
               <Globe className="w-8 h-8 text-blue-500 mx-auto mb-3" />
               <div className="text-3xl font-bold text-gray-900 mb-1">{stats.uniqueIPs}</div>
-              <div className="text-gray-600 text-sm">Unique IPs</div>
-            </div>
-
-            <div className="card p-6 text-center hover:scale-105 transition-transform duration-300">
-              <Shield className="w-8 h-8 text-green-500 mx-auto mb-3" />
-              <div className="text-3xl font-bold text-gray-900 mb-1">{wallOfShame?.statistics.totalBans || 0}</div>
-              <div className="text-gray-600 text-sm">Banned IPs</div>
+              <div className="text-gray-600 text-sm">Unique Attacker IPs</div>
             </div>
           </div>
         )}
@@ -188,18 +133,18 @@ const SecurityDashboard: React.FC = () => {
         {stats && stats.topCategories.length > 0 && (
           <div className="card p-8 mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-              <Trophy className="w-6 h-6 mr-3 text-yellow-500" />
+              <Shield className="w-6 h-6 mr-3 text-orange-500" />
               Attack Categories
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stats.topCategories.map((category, index) => (
+              {stats.topCategories.map((category) => (
                 <div key={category.category} className={`p-4 rounded-xl bg-gradient-to-r ${getCategoryColor(category.category)} border border-gray-200/50`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <span className="text-2xl mr-3">{getCategoryIcon(category.category)}</span>
                       <div>
                         <div className="text-gray-900 font-semibold capitalize">{category.category}</div>
-                        <div className="text-gray-600 text-sm">{category.count} attempts</div>
+                        <div className="text-gray-600 text-sm">{category.count} attempts blocked</div>
                       </div>
                     </div>
                   </div>
@@ -209,115 +154,12 @@ const SecurityDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Wall of Shame */}
-        {wallOfShame && (
-          <div className="mb-12">
-            <div className="card p-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2 text-center">
-                😈 WALL OF SHAME
-              </h2>
-              <p className="text-gray-600 text-center mb-8">
-                Hall of Fame for Script Kiddies and Their Ridiculous Attempts
-              </p>
-
-              {/* Permanent Bans */}
-              {wallOfShame.permanentBans.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-xl font-bold text-red-600 mb-4 flex items-center">
-                    🔴 PERMANENT BANS - Script Kiddies Hall of Fame
-                  </h3>
-                  <div className="space-y-4">
-                    {wallOfShame.permanentBans.slice(0, 10).map((entry, index) => (
-                      <div key={index} className={`p-4 rounded-xl bg-gradient-to-r from-red-50/80 to-red-100/50 border border-red-200/50 hover:border-red-300/60 transition-colors duration-300`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <span className="text-2xl mr-3">{entry.countryFlag || '🏴‍☠️'}</span>
-                            <div>
-                              <div className="text-gray-900 font-mono text-sm">{entry.maskedIP}</div>
-                              <div className="text-gray-800 font-semibold">"{entry.offendingRequest}"</div>
-                              <div className="text-gray-600 text-sm">{entry.sarcasticComment}</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-gray-700 text-sm capitalize">{entry.category}</div>
-                            <div className="text-gray-500 text-xs">{new Date(entry.bannedAt).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Temporary Bans */}
-              {wallOfShame.temporaryBans.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-xl font-bold text-yellow-600 mb-4 flex items-center">
-                    🟡 TEMPORARY BANS - 404 Hunters
-                  </h3>
-                  <div className="space-y-4">
-                    {wallOfShame.temporaryBans.map((entry, index) => (
-                      <div key={index} className={`p-4 rounded-xl bg-gradient-to-r from-yellow-50/80 to-yellow-100/50 border border-yellow-200/50 hover:border-yellow-300/60 transition-colors duration-300`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <span className="text-2xl mr-3">{entry.countryFlag || '🏴‍☠️'}</span>
-                            <div>
-                              <div className="text-gray-900 font-mono text-sm">{entry.maskedIP}</div>
-                              <div className="text-gray-800 font-semibold">"{entry.offendingRequest}"</div>
-                              <div className="text-gray-600 text-sm">{entry.sarcasticComment}</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-yellow-600 font-semibold flex items-center">
-                              <Clock className="w-4 h-4 mr-1" />
-                              {entry.timeLeft}
-                            </div>
-                            <div className="text-gray-500 text-xs">{new Date(entry.bannedAt).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* No Bans Yet */}
-              {wallOfShame.permanentBans.length === 0 && wallOfShame.temporaryBans.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🎭</div>
-                  <div className="text-gray-600 text-lg">The Wall of Shame is empty... for now!</div>
-                  <div className="text-gray-500 text-sm mt-2">Script kiddies haven't found us yet. Give it time! 😈</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Achievements */}
-        {achievements.length > 0 && (
-          <div className="card p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-              <Trophy className="w-6 h-6 mr-3 text-yellow-500" />
-              Security Achievements
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {achievements.map((achievement, index) => (
-                <div key={index} className="p-6 rounded-xl bg-gradient-to-r from-yellow-50/80 to-orange-50/80 border border-yellow-200/50 hover:border-yellow-300/60 transition-colors duration-300">
-                  <div className="text-center">
-                    <div className="text-4xl mb-3">{achievement.icon}</div>
-                    <div className="text-gray-900 font-bold mb-2">{achievement.title}</div>
-                    <div className="text-gray-600 text-sm mb-3">{achievement.description}</div>
-                    <div className="text-yellow-600 font-semibold">{achievement.winner}</div>
-                    {achievement.count && (
-                      <div className="text-gray-500 text-xs mt-1">{achievement.count} attempts</div>
-                    )}
-                    {achievement.attacksPerSecond && (
-                      <div className="text-gray-500 text-xs mt-1">{achievement.attacksPerSecond} attacks/sec</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* No attacks yet */}
+        {stats && stats.totalAttacks === 0 && (
+          <div className="card p-8 text-center">
+            <Shield className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">All Clear</h2>
+            <p className="text-gray-600">No attacks detected. The system is monitoring for threats.</p>
           </div>
         )}
       </div>

@@ -28,16 +28,25 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
 
   const showToast = (type: ToastType, title: string, message?: string, duration?: number) => {
-    const id = Math.random().toString(36).substr(2, 9)
-    const toast: ToastMessage = {
-      id,
-      type,
-      title,
-      message,
-      duration
-    }
+    setToasts(prev => {
+      // Deduplicate: skip if same title+message already showing
+      if (prev.some(t => t.title === title && t.message === message)) return prev
 
-    setToasts(prev => [...prev, toast])
+      const id = crypto.getRandomValues(new Uint8Array(6))
+        .reduce((s, b) => s + b.toString(16).padStart(2, '0'), '')
+      const toast: ToastMessage = {
+        id,
+        type,
+        title,
+        message,
+        // Default: 8s for errors, 5s for everything else
+        duration: duration ?? (type === 'error' ? 8000 : 5000)
+      }
+
+      // Cap at 5 toasts max
+      const updated = [...prev, toast]
+      return updated.length > 5 ? updated.slice(-5) : updated
+    })
   }
 
   const showSuccess = (title: string, message?: string, duration?: number) => {

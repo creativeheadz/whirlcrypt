@@ -11,6 +11,12 @@ export interface StorageProvider {
    * Store a file and return the storage path
    */
   store(data: Buffer, filename: string, metadata?: StorageMetadata): Promise<string>;
+
+  /**
+   * Store a file from a path on disk (move/copy) and return the storage path.
+   * More efficient than store() for large files as it avoids loading into memory.
+   */
+  storeFromPath(sourcePath: string, filename: string, metadata?: StorageMetadata): Promise<string>;
   
   /**
    * Retrieve a file by its storage path

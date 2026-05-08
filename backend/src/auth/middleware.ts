@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { JWTManager, JWTPayload } from './jwt';
 import { AdminUserRepository, AdminSessionRepository, AdminAuditRepository } from '../database/models/AdminUser';
+import logger from '../utils/logger';
 
 // Extend Express Request interface to include admin user info
 declare global {
@@ -133,7 +134,7 @@ export class AuthMiddleware {
 
       next();
     } catch (error) {
-      console.error('Auth middleware error:', error);
+      logger.error({ err: error }, 'Auth middleware error');
       await AuthMiddleware.logFailedAuth(req, `Internal error: ${(error as Error).message}`);
       res.status(500).json({
         error: 'Internal server error',
@@ -145,10 +146,13 @@ export class AuthMiddleware {
   /**
    * Middleware to require specific admin permissions (future extension)
    */
-  static requirePermission = (permission: string) => {
-    return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-      // For now, all authenticated admins have all permissions
-      // This can be extended later with role-based access control
+  /**
+   * Require specific admin permissions.
+   * Currently all authenticated admins have full access (no RBAC implemented).
+   * When RBAC is added, check permission against user roles here.
+   */
+  static requirePermission = (_permission: string) => {
+    return async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
       next();
     };
   };
@@ -197,11 +201,11 @@ export class AuthMiddleware {
               }
             });
           } catch (auditError) {
-            console.error('Failed to log admin action:', auditError);
+            logger.error({ err: auditError }, 'Failed to log admin action');
           }
         });
       } catch (error) {
-        console.error('Action logging middleware error:', error);
+        logger.error({ err: error }, 'Action logging middleware error');
         next();
       }
     };
@@ -285,10 +289,8 @@ export class AuthMiddleware {
    * Helper to get client IP address
    */
   private static getClientIP(req: Request): string {
-    return (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-           req.connection.remoteAddress ||
-           req.socket.remoteAddress ||
-           'unknown';
+    // Use req.ip which respects Express's 'trust proxy' setting
+    return req.ip || req.connection.remoteAddress || 'unknown';
   }
 
   /**
@@ -311,7 +313,7 @@ export class AuthMiddleware {
         }
       });
     } catch (error) {
-      console.error('Failed to log authentication failure:', error);
+      logger.error({ err: error }, 'Failed to log authentication failure');
     }
   }
 }
@@ -330,7 +332,7 @@ export function withAuth(handler: AuthenticatedRequestHandler): RequestHandler {
     try {
       await handler(req, res, next);
     } catch (error) {
-      console.error('Authenticated route handler error:', error);
+      logger.error({ err: error }, 'Authenticated route handler error');
       res.status(500).json({
         error: 'Internal server error',
         message: 'Request processing failed'

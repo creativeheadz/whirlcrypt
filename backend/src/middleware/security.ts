@@ -5,6 +5,28 @@ import { randomBytes } from 'crypto';
 import { config } from '../config/config';
 
 /**
+ * Trusted IPs that bypass rate limiting.
+ * Configure via TRUSTED_IPS env var (comma-separated) or hardcode known admin IPs.
+ */
+const TRUSTED_IPS: string[] = (process.env.TRUSTED_IPS || '')
+  .split(',')
+  .map(ip => ip.trim())
+  .filter(Boolean);
+
+function getClientIP(req: Request): string {
+  // Use req.ip which respects Express's 'trust proxy' setting,
+  // rather than reading x-forwarded-for directly (spoofable).
+  return req.ip || req.connection.remoteAddress || 'unknown';
+}
+
+function isTrustedIP(req: Request): boolean {
+  if (TRUSTED_IPS.length === 0) return false;
+  const clientIP = getClientIP(req);
+  return TRUSTED_IPS.includes(clientIP);
+}
+import logger from '../utils/logger';
+
+/**
  * Generate CSP nonce for inline scripts/styles
  */
 export const generateCSPNonce = (): string => {
@@ -69,7 +91,7 @@ export const handleCSPViolation = (req: Request, res: Response) => {
   const violation = req.body;
 
   // Log CSP violations for security monitoring
-  console.warn('🚨 CSP Violation Report:', {
+  logger.warn({
     timestamp: new Date().toISOString(),
     userAgent: req.headers['user-agent'],
     ip: req.ip,
@@ -85,7 +107,7 @@ export const handleCSPViolation = (req: Request, res: Response) => {
       lineNumber: violation['line-number'],
       columnNumber: violation['column-number']
     }
-  });
+  }, 'CSP Violation Report');
 
   // In production, you might want to send this to a security monitoring service
   // or store in database for analysis
@@ -104,17 +126,11 @@ export const rateLimitMiddleware = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // CRITICAL: Use IP address for rate limiting (per-IP, not global)
-  keyGenerator: (req: Request) => {
-    // Get real IP from proxy headers or fallback to req.ip
-    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-           req.headers['x-real-ip'] as string ||
-           req.connection.remoteAddress ||
-           req.ip ||
-           'unknown';
-  },
-  // Skip rate limiting for static assets AND file downloads
+  keyGenerator: (req: Request) => getClientIP(req),
   skip: (req: Request) => {
+    // Trusted IPs bypass rate limiting
+    if (isTrustedIP(req)) return true;
+    // Skip static assets, downloads, and chunked upload chunks
     return req.path.startsWith('/assets/') ||
            req.path.startsWith('/favicon') ||
            req.path.endsWith('.js') ||
@@ -136,16 +152,26 @@ export const uploadRateLimitMiddleware = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // CRITICAL: Use IP address for rate limiting (per-IP, not global)
-  keyGenerator: (req: Request) => {
-    // Get real IP from proxy headers or fallback to req.ip
-    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-           req.headers['x-real-ip'] as string ||
-           req.connection.remoteAddress ||
-           req.ip ||
-           'unknown';
-  }
+  keyGenerator: (req: Request) => getClientIP(req),
+  skip: (req: Request) => isTrustedIP(req)
 });
+
+/**
+ * Chunked upload initialization rate limiting
+ * Limit the number of upload sessions that can be started
+ */
+export const chunkedUploadInitRateLimitMiddleware = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 upload initializations per windowMs
+  message: {
+    error: 'Too many upload sessions started, please try again later'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => getClientIP(req),
+  skip: (req: Request) => isTrustedIP(req)
+});
+
 
 /**
  * Security headers middleware - Enhanced with Wormhole-inspired headers

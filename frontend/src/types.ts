@@ -42,8 +42,13 @@ export interface ECEHeader {
   keyId: Uint8Array;
 }
 
-export const DEFAULT_RECORD_SIZE = 4096;
+// RFC 8188 compliant constants
+export const DEFAULT_RECORD_SIZE = 4096; // 4KB - RFC 8188 default
 export const SALT_LENGTH = 16;
 export const KEY_LENGTH = 16;
 export const KEYID_LENGTH = 1;
 export const TAG_LENGTH = 16;
+
+// Performance tuning: Larger record size for better performance (still within RFC 8188 limits)
+// RFC 8188 allows up to (2^32 - 1) bytes, but we use 256KB for optimal browser performance
+export const OPTIMIZED_RECORD_SIZE = 262144; // 256KB - good balance between memory and performance

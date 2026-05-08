@@ -25,6 +25,7 @@ import {
 
 // Import routes
 import uploadRouter from './routes/upload';
+import uploadChunkedRouter from './routes/upload-chunked';
 import downloadRouter from './routes/download';
 import adminRouter from './routes/admin';
 import adminAuthRouter from './routes/admin-auth';
@@ -32,6 +33,7 @@ import securityRouter from './routes/security';
 
 // Import attack detection middleware
 import { AttackDetectionMiddleware } from './middleware/attackDetection';
+import logger from './utils/logger';
 
 const app = express();
 let fileManager: FileManagerV2 | FileManager;
@@ -113,7 +115,17 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Public config endpoint — exposes non-sensitive server limits to frontend
+app.get('/api/config', (req, res) => {
+  res.json({
+    maxFileSize: config.retention.maxFileSize,
+    maxRetentionHours: config.retention.maxRetentionHours,
+    defaultRetentionHours: config.retention.defaultRetentionHours,
+  });
+});
+
 // Routes
+app.use('/api/upload/chunked', uploadChunkedRouter); // Chunked upload has its own rate limiting per route
 app.use('/api/upload', uploadRateLimitMiddleware, uploadRouter);
 app.use('/api/download', downloadRouter);
 app.use('/api/admin/auth', adminAuthRouter);
@@ -152,9 +164,12 @@ if (config.nodeEnv === 'production') {
         html = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/i, '');
       }
 
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.send(html);
     } catch (error) {
-      console.error('Error serving index.html:', error);
+      logger.error({ err: error }, 'Error serving index.html');
       res.status(500).send('Internal Server Error');
     }
   });
@@ -165,7 +180,7 @@ if (config.nodeEnv === 'production') {
 
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
+  logger.error({ err: err }, 'Unhandled error');
 
   // Check if request accepts HTML
   if (req.accepts('html')) {
@@ -176,12 +191,14 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Cleanup cron job - runs every hour by default
-const cleanupCron = `0 */${config.retention.cleanupIntervalMinutes} * * *`;
-cron.schedule(cleanupCron, async () => {
+// Cleanup cron job - runs every N minutes (default: 60)
+// Cron format: minute hour day month weekday
+// For minute-based intervals, use: */N * * * * (every N minutes)
+const cleanupCron = `*/${config.retention.cleanupIntervalMinutes} * * * *`;
+const cleanupTask = cron.schedule(cleanupCron, async () => {
   try {
     const cleanedCount = await fileManager.cleanupExpiredFiles();
-    console.log(`🧹 File cleanup completed: ${cleanedCount} expired files removed`);
+    logger.info(`File cleanup completed: ${cleanedCount} expired files removed`);
 
     // Also cleanup security logs and expired bans
     const { AttackLogger } = await import('./services/AttackLogger');
@@ -193,29 +210,29 @@ cron.schedule(cleanupCron, async () => {
     const oldLogsCleanup = await attackLogger.cleanupOldLogs();
     const expiredBansCleanup = await banManager.cleanupExpiredBans();
 
-    console.log(`🛡️ Security cleanup completed: ${oldLogsCleanup} old logs, ${expiredBansCleanup} expired bans`);
+    logger.info(`Security cleanup completed: ${oldLogsCleanup} old logs, ${expiredBansCleanup} expired bans`);
   } catch (error) {
-    console.error('Cleanup error:', error);
+    logger.error({ err: error }, 'Cleanup error');
   }
 });
 
 // Initialize application
 async function initializeApp() {
   try {
-    console.log('🔄 Initializing Whirlcrypt...');
+    logger.info('Initializing Whirlcrypt...');
     
     // Test database connection
     const dbConnected = await DatabaseConnection.testConnection();
     
     if (dbConnected) {
-      console.log('✅ Database connected - using FileManagerV2');
+      logger.info('Database connected - using FileManagerV2');
       
       // Initialize database schema
       if (config.nodeEnv === 'development') {
         try {
           await DatabaseConnection.initializeSchema();
         } catch (error) {
-          console.warn('⚠️ Could not initialize database schema (may already exist):', (error as Error).message);
+          logger.warn({ detail: (error as Error).message }, 'Could not initialize database schema (may already exist)');
         }
       }
 
@@ -224,39 +241,66 @@ async function initializeApp() {
       await fileManager.initialize();
       setFileManager(fileManager);
     } else {
-      console.warn('⚠️ Database not available - falling back to FileManager (filesystem only)');
-      console.warn('⚠️ For full functionality, set up PostgreSQL and configure DB_* environment variables');
+      logger.warn('Database not available - falling back to FileManager (filesystem only)');
+      logger.warn('For full functionality, set up PostgreSQL and configure DB_* environment variables');
       
       // Initialize old FileManager without database
       fileManager = new FileManager();
       setFileManager(fileManager);
     }
 
-    console.log('✅ Application initialized successfully');
+    logger.info('Application initialized successfully');
     return true;
   } catch (error) {
-    console.error('❌ Failed to initialize application:', error);
+    logger.error({ err: error }, 'Failed to initialize application');
     return false;
   }
 }
 
 // Graceful shutdown
+let server: ReturnType<typeof app.listen> | null = null;
+
 const gracefulShutdown = async () => {
-  console.log('🔄 Shutting down gracefully...');
-  
+  logger.info('Shutting down gracefully...');
+
   try {
+    // Stop accepting new connections and drain in-flight requests
+    if (server) {
+      await new Promise<void>((resolve) => {
+        server!.close(() => resolve());
+        // Force close after 10 seconds if connections don't drain
+        setTimeout(resolve, 10000);
+      });
+      logger.info('HTTP server closed');
+    }
+
+    // Stop cron jobs
+    cleanupTask.stop();
+    if (process.env.CT_MONITOR_ENABLED !== 'false') {
+      certificateMonitoringJob.stop();
+    }
+    logger.info('Scheduled jobs stopped');
+
+    // Shutdown chunked upload manager (clears cleanup interval)
+    const { getChunkedUploadManager } = await import('./services/ChunkedUploadManager');
+    try {
+      getChunkedUploadManager().shutdown();
+    } catch {
+      // Manager may not have been initialized
+    }
+
     // Cleanup file manager if it has a cleanup method
     if (fileManager && 'cleanup' in fileManager) {
       await fileManager.cleanup();
     }
-    
+
     // Close database connection
     await DatabaseConnection.close();
-    console.log('✅ Cleanup completed');
+    logger.info('Shutdown completed');
   } catch (error) {
-    console.error('❌ Error during cleanup:', error);
+    logger.error({ err: error }, 'Error during shutdown');
   }
-  
+
   process.exit(0);
 };
 
@@ -268,28 +312,28 @@ const port = config.port;
 
 initializeApp().then((initialized) => {
   if (!initialized) {
-    console.error('❌ Application failed to initialize');
+    logger.error('Application failed to initialize');
     process.exit(1);
   }
 
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 Whirlcrypt API v2.0 running on port ${port}`);
-    console.log(`🌐 Server accessible at http://0.0.0.0:${port} and http://192.168.1.100:${port}`);
-    console.log(`🗄️ Database: ${config.database.host}:${config.database.port}/${config.database.database}`);
-    console.log(`📁 Storage: ${config.storage.provider} (${config.storage.local?.path || 'configured'})`);
-    console.log(`⏰ Default retention: ${config.retention.defaultRetentionHours} hours`);
-    console.log(`🧹 Cleanup runs every ${config.retention.cleanupIntervalMinutes} minutes`);
-    console.log(`📦 Max file size: ${Math.round(config.retention.maxFileSize / 1024 / 1024)}MB`);
-    console.log(`🌍 Environment: ${config.nodeEnv}`);
+  server = app.listen(port, '0.0.0.0', () => {
+    logger.info(`Whirlcrypt API v2.0 running on port ${port}`);
+    logger.info(`Server accessible at http://0.0.0.0:${port} and http://192.168.1.100:${port}`);
+    logger.info(`Database: ${config.database.host}:${config.database.port}/${config.database.database}`);
+    logger.info(`Storage: ${config.storage.provider} (${config.storage.local?.path || 'configured'})`);
+    logger.info(`Default retention: ${config.retention.defaultRetentionHours} hours`);
+    logger.info(`Cleanup runs every ${config.retention.cleanupIntervalMinutes} minutes`);
+    logger.info(`Max file size: ${Math.round(config.retention.maxFileSize / 1024 / 1024)}MB`);
+    logger.info(`Environment: ${config.nodeEnv}`);
 
     // Start certificate transparency monitoring
     if (process.env.CT_MONITOR_ENABLED !== 'false') {
       certificateMonitoringJob.start();
-      console.log(`🔍 Certificate Transparency monitoring enabled`);
+      logger.info(`Certificate Transparency monitoring enabled`);
     }
   });
 }).catch((error) => {
-  console.error('❌ Failed to start server:', error);
+  logger.error({ err: error }, 'Failed to start server');
   process.exit(1);
 });
 

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { createHash } from 'crypto';
+import logger from '../utils/logger';
 
 /**
  * Certificate Transparency Monitor - Wormhole-inspired security monitoring
@@ -67,7 +68,7 @@ export class CertificateTransparencyMonitor {
   addDomain(domain: string): void {
     if (!this.monitoredDomains.includes(domain)) {
       this.monitoredDomains.push(domain);
-      console.log(`🔍 Added domain to CT monitoring: ${domain}`);
+      logger.info(`Added domain to CT monitoring: ${domain}`);
     }
   }
 
@@ -78,7 +79,7 @@ export class CertificateTransparencyMonitor {
     const index = this.monitoredDomains.indexOf(domain);
     if (index > -1) {
       this.monitoredDomains.splice(index, 1);
-      console.log(`🗑️ Removed domain from CT monitoring: ${domain}`);
+      logger.info(`Removed domain from CT monitoring: ${domain}`);
     }
   }
 
@@ -100,11 +101,11 @@ export class CertificateTransparencyMonitor {
         
         // Alert on new certificates
         if (result.newCertificates > 0) {
-          console.log(`🆕 Found ${result.newCertificates} new certificates for ${domain}`);
+          logger.info(`Found ${result.newCertificates} new certificates for ${domain}`);
         }
         
       } catch (error) {
-        console.error(`❌ CT monitoring failed for ${domain}:`, error);
+        logger.error({ err: error }, `CT monitoring failed for ${domain}`);
       }
     }
     
@@ -115,7 +116,7 @@ export class CertificateTransparencyMonitor {
    * Monitor a specific domain for certificates
    */
   async monitorDomain(domain: string): Promise<CTMonitoringResult> {
-    console.log(`🔍 Monitoring CT logs for domain: ${domain}`);
+    logger.info(`Monitoring CT logs for domain: ${domain}`);
     
     const allCertificates: CTLogEntry[] = [];
     const suspiciousCertificates: CTLogEntry[] = [];
@@ -145,7 +146,7 @@ export class CertificateTransparencyMonitor {
         
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.warn(`⚠️ Failed to query CT log ${logUrl}:`, message);
+        logger.warn({ err: message }, `Failed to query CT log ${logUrl}`);
       }
     }
 
@@ -196,7 +197,7 @@ export class CertificateTransparencyMonitor {
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`Failed to query ${logUrl}:`, message);
+      logger.warn({ err: message }, `Failed to query ${logUrl}`);
       return [];
     }
   }
@@ -254,16 +255,16 @@ export class CertificateTransparencyMonitor {
    * Alert on suspicious certificates
    */
   private async alertSuspiciousCertificates(domain: string, certificates: CTLogEntry[]): Promise<void> {
-    console.warn(`🚨 SUSPICIOUS CERTIFICATES DETECTED for ${domain}:`);
+    logger.warn(`SUSPICIOUS CERTIFICATES DETECTED for ${domain}:`);
     
     for (const cert of certificates) {
       if (cert.certificate) {
-        console.warn(`  - Subject: ${cert.certificate.subject}`);
-        console.warn(`  - Issuer: ${cert.certificate.issuer}`);
-        console.warn(`  - SANs: ${cert.certificate.subjectAltNames.join(', ')}`);
-        console.warn(`  - Fingerprint: ${cert.certificate.fingerprint}`);
-        console.warn(`  - Issued: ${cert.certificate.notBefore.toISOString()}`);
-        console.warn('  ---');
+        logger.warn(`  - Subject: ${cert.certificate.subject}`);
+        logger.warn(`  - Issuer: ${cert.certificate.issuer}`);
+        logger.warn(`  - SANs: ${cert.certificate.subjectAltNames.join(', ')}`);
+        logger.warn(`  - Fingerprint: ${cert.certificate.fingerprint}`);
+        logger.warn(`  - Issued: ${cert.certificate.notBefore.toISOString()}`);
+        logger.warn('  ---');
       }
     }
 
@@ -294,6 +295,6 @@ export class CertificateTransparencyMonitor {
    */
   clearCache(): void {
     this.knownCertificates.clear();
-    console.log('🗑️ Cleared CT monitoring certificate cache');
+    logger.info('Cleared CT monitoring certificate cache');
   }
 }

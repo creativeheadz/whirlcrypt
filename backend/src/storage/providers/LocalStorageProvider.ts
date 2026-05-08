@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import {
   StorageProvider,
@@ -9,6 +9,7 @@ import {
   StorageStats,
   ProviderHealth
 } from '../interfaces';
+import logger from '../../utils/logger';
 
 export class LocalStorageProvider implements StorageProvider {
   readonly name = 'local';
@@ -48,6 +49,7 @@ export class LocalStorageProvider implements StorageProvider {
     const safeFilename = this.sanitizeFilename(filename);
     const storagePath = join(subdir, `${fileId}-${safeFilename}`);
     const fullPath = join(this.basePath, storagePath);
+    this.validatePath(fullPath);
 
     // Ensure directory exists
     const dirPath = dirname(fullPath);
@@ -78,20 +80,68 @@ export class LocalStorageProvider implements StorageProvider {
     return storagePath;
   }
 
+  async storeFromPath(sourcePath: string, filename: string, metadata?: StorageMetadata): Promise<string> {
+    if (!this.config) {
+      throw new Error('Storage provider not initialized');
+    }
+
+    const fileId = metadata?.fileId || uuidv4();
+    const subdir = this.config.createSubdirs ? this.generateSubdirectory(fileId) : '';
+    const safeFilename = this.sanitizeFilename(filename);
+    const storagePath = join(subdir, `${fileId}-${safeFilename}`);
+    const fullPath = join(this.basePath, storagePath);
+
+    const dirPath = dirname(fullPath);
+    try {
+      await fs.access(dirPath);
+    } catch {
+      await fs.mkdir(dirPath, {
+        recursive: true,
+        mode: parseInt(this.config.permissions!, 8)
+      });
+    }
+
+    // Rename (move) if on same filesystem, otherwise copy
+    try {
+      await fs.rename(sourcePath, fullPath);
+    } catch (err: any) {
+      if (err.code === 'EXDEV') {
+        await fs.copyFile(sourcePath, fullPath);
+        await fs.unlink(sourcePath);
+      } else {
+        throw err;
+      }
+    }
+
+    if (metadata) {
+      const stat = await fs.stat(fullPath);
+      const metadataPath = `${fullPath}.meta`;
+      const metadataContent = JSON.stringify({
+        ...metadata,
+        storedAt: new Date().toISOString(),
+        originalSize: stat.size
+      }, null, 2);
+      await fs.writeFile(metadataPath, metadataContent, 'utf8');
+    }
+
+    return storagePath;
+  }
+
   async retrieve(storagePath: string): Promise<Buffer> {
     if (!this.config) {
       throw new Error('Storage provider not initialized');
     }
 
     const fullPath = join(this.basePath, storagePath);
+    this.validatePath(fullPath);
 
     try {
-      console.log(`Attempting to retrieve file from: ${fullPath}`);
+      logger.info(`Attempting to retrieve file: ${storagePath}`);
       const data = await fs.readFile(fullPath);
-      console.log(`Successfully retrieved file, size: ${data.length} bytes`);
+      logger.info(`Successfully retrieved file, size: ${data.length} bytes`);
       return data;
     } catch (error: any) {
-      console.error(`Error retrieving file from ${fullPath}:`, error);
+      logger.error({ err: error }, `Error retrieving file: ${storagePath}`);
       if (error.code === 'ENOENT') {
         throw new Error(`File not found: ${storagePath}`);
       }
@@ -105,6 +155,7 @@ export class LocalStorageProvider implements StorageProvider {
     }
 
     const fullPath = join(this.basePath, storagePath);
+    this.validatePath(fullPath);
     const metadataPath = `${fullPath}.meta`;
 
     try {
@@ -122,7 +173,7 @@ export class LocalStorageProvider implements StorageProvider {
     } catch (error: any) {
       // Ignore if metadata file doesn't exist
       if (error.code !== 'ENOENT') {
-        console.warn(`Failed to delete metadata file: ${metadataPath}`, error);
+        logger.warn({ err: error }, `Failed to delete metadata file: ${metadataPath}`);
       }
     }
 
@@ -225,6 +276,17 @@ export class LocalStorageProvider implements StorageProvider {
     // e.g., "ab/cd" from fileId starting with "abcd..."
     const id = fileId.replace(/-/g, '');
     return join(id.slice(0, 2), id.slice(2, 4));
+  }
+
+  /**
+   * Validate that the resolved path is within basePath (prevents traversal + symlink attacks)
+   */
+  private validatePath(fullPath: string): void {
+    const resolved = resolve(fullPath);
+    const base = resolve(this.basePath);
+    if (!resolved.startsWith(base + '/') && resolved !== base) {
+      throw new Error('Path traversal detected');
+    }
   }
 
   private sanitizeFilename(filename: string): string {

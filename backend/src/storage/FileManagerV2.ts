@@ -3,9 +3,11 @@ import { FileRepository, CreateFileData, UpdateFileData, DownloadLogData } from 
 import { FileMetadata } from '../types';
 import { config } from '../config/config';
 import { v4 as uuidv4 } from 'uuid';
-import { createReadStream, ReadStream } from 'fs';
+import { createReadStream, ReadStream, statSync } from 'fs';
+import { stat } from 'fs/promises';
 import { join } from 'path';
 import { MetadataEncryption, FileMetadataToEncrypt } from '../services/MetadataEncryption';
+import logger from '../utils/logger';
 
 export class FileManagerV2 {
   private storageManager: StorageManager;
@@ -18,7 +20,7 @@ export class FileManagerV2 {
 
   async initialize(): Promise<void> {
     await this.storageManager.initialize();
-    console.log('✅ FileManagerV2 initialized');
+    logger.info('FileManagerV2 initialized');
   }
 
   /**
@@ -64,21 +66,106 @@ export class FileManagerV2 {
     const serializedMetadata = MetadataEncryption.serializeEncryptedMetadata(encryptedMetadata);
 
     // Create database record with encrypted metadata
+    // If DB insert fails, clean up the stored file to prevent orphans
     const createData: CreateFileData = {
-      filename: `encrypted_${fileId}`, // Don't store original filename in plaintext
+      filename: `encrypted_${fileId}`,
       originalSize: encryptedData.length,
       encryptedSize: encryptedData.length,
-      contentType: 'application/octet-stream', // Don't store original content type
+      contentType: 'application/octet-stream',
       storagePath,
       storageProvider: config.storage.provider,
       expiresAt,
       maxDownloads,
-      encryptedMetadata: serializedMetadata // Store encrypted metadata
+      encryptedMetadata: serializedMetadata
     };
 
-    const fileMetadata = await this.fileRepository.create(createData);
+    let fileMetadata: FileMetadata;
+    try {
+      fileMetadata = await this.fileRepository.create(createData);
+    } catch (dbError) {
+      // DB insert failed — clean up the stored file to prevent orphans
+      logger.error({ err: dbError }, `DB insert failed for ${fileId}, cleaning up stored file`);
+      try {
+        await this.storageManager.delete(storagePath);
+      } catch (cleanupError) {
+        logger.error({ err: cleanupError }, `Failed to clean up orphaned file at ${storagePath}`);
+      }
+      throw dbError;
+    }
 
-    console.log(`📁 File stored: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
+    logger.info(`File stored: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
+    return fileMetadata;
+  }
+
+  /**
+   * Store a file from a path on disk (avoids loading into memory).
+   * Used for chunked uploads where the assembled file is already on disk.
+   */
+  async storeFileFromPath(
+    filePath: string,
+    filename: string,
+    contentType: string,
+    retentionHours: number = config.retention.defaultRetentionHours,
+    maxDownloads?: number,
+    uploaderIP?: string,
+    userAgent?: string
+  ): Promise<FileMetadata> {
+    const fileId = uuidv4();
+    const expiresAt = new Date(Date.now() + (retentionHours * 60 * 60 * 1000));
+    const fileStat = await stat(filePath);
+    const fileSize = fileStat.size;
+
+    const storagePath = await this.storageManager.storeFromPath(
+      filePath,
+      filename,
+      {
+        fileId,
+        contentType,
+        originalFilename: filename,
+        uploadDate: new Date(),
+        expiresAt
+      }
+    );
+
+    const metadataToEncrypt: FileMetadataToEncrypt = {
+      originalFilename: filename,
+      contentType,
+      uploadTimestamp: new Date(),
+      uploaderIP,
+      userAgent,
+      fileSize,
+      retentionHours
+    };
+
+    const encryptedMetadata = MetadataEncryption.encryptMetadata(metadataToEncrypt);
+    const serializedMetadata = MetadataEncryption.serializeEncryptedMetadata(encryptedMetadata);
+
+    const createData: CreateFileData = {
+      filename: `encrypted_${fileId}`,
+      originalSize: fileSize,
+      encryptedSize: fileSize,
+      contentType: 'application/octet-stream',
+      storagePath,
+      storageProvider: config.storage.provider,
+      expiresAt,
+      maxDownloads,
+      encryptedMetadata: serializedMetadata
+    };
+
+    let fileMetadata: FileMetadata;
+    try {
+      fileMetadata = await this.fileRepository.create(createData);
+    } catch (dbError) {
+      logger.error({ err: dbError }, `DB insert failed for ${fileId}, cleaning up stored file`);
+      try {
+        await this.storageManager.delete(storagePath);
+      } catch (cleanupError) {
+        logger.error({ err: cleanupError }, `Failed to clean up orphaned file at ${storagePath}`);
+      }
+      throw dbError;
+    }
+
+    logger.info(`File stored from path: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
     return fileMetadata;
   }
 
@@ -106,7 +193,7 @@ export class FileManagerV2 {
         const deserializedMetadata = MetadataEncryption.deserializeEncryptedMetadata(fileMetadata.encryptedMetadata);
         decryptedMetadata = MetadataEncryption.decryptMetadata(deserializedMetadata);
       } catch (error) {
-        console.error('Failed to decrypt metadata for file:', fileId, error);
+        logger.error({ err: error, fileId }, 'Failed to decrypt metadata for file');
         // Continue without decrypted metadata rather than failing completely
       }
     }
@@ -130,7 +217,7 @@ export class FileManagerV2 {
       const data = await this.storageManager.retrieve(metadata.storagePath);
       return data;
     } catch (error: any) {
-      console.error(`Error retrieving file data for ${fileId}:`, error);
+      logger.error({ err: error }, `Error retrieving file data for ${fileId}`);
       return null;
     }
   }
@@ -155,7 +242,7 @@ export class FileManagerV2 {
       // For now, return null to fall back to buffer method
       return null;
     } catch (error: any) {
-      console.error(`Error creating file stream for ${fileId}:`, error);
+      logger.error({ err: error }, `Error creating file stream for ${fileId}`);
       return null;
     }
   }
@@ -186,7 +273,7 @@ export class FileManagerV2 {
     try {
       await this.fileRepository.logDownload(logData);
     } catch (error) {
-      console.error(`Error logging download for ${fileId}:`, error);
+      logger.error({ err: error }, `Error logging download for ${fileId}`);
     }
 
     // Increment counter
@@ -213,7 +300,7 @@ export class FileManagerV2 {
     try {
       await this.fileRepository.logDownload(logData);
     } catch (error) {
-      console.error(`Error logging download error for ${fileId}:`, error);
+      logger.error({ err: error }, `Error logging download error for ${fileId}`);
     }
   }
 
@@ -233,10 +320,10 @@ export class FileManagerV2 {
       // Mark as inactive in database
       await this.fileRepository.update(fileId, { isActive: false });
       
-      console.log(`🗑️ File deleted: ${fileId} (${metadata.filename})`);
+      logger.info(`File deleted: ${fileId} (${metadata.filename})`);
       return true;
     } catch (error: any) {
-      console.error(`Error deleting file ${fileId}:`, error);
+      logger.error({ err: error }, `Error deleting file ${fileId}`);
       return false;
     }
   }
@@ -248,29 +335,29 @@ export class FileManagerV2 {
     try {
       // Get expired files before cleanup to remove from storage
       const expiredFiles = await this.fileRepository.findExpiringSoon(-1); // Get already expired files
-      
-      // Remove expired files from storage
+
+      // Mark expired files as inactive in database FIRST (safe even if storage delete fails)
+      const cleanedCount = await this.fileRepository.cleanupExpiredFiles();
+
+      // Then remove expired files from storage
       for (const file of expiredFiles) {
         if (file.storagePath) {
           try {
             await this.storageManager.delete(file.storagePath);
-            console.log(`🧹 Removed expired file from storage: ${file.id} (${file.filename})`);
+            logger.info(`Removed expired file from storage: ${file.id}`);
           } catch (error: any) {
-            console.error(`Error removing expired file from storage ${file.id}:`, error);
+            logger.error({ err: error }, `Error removing expired file from storage ${file.id}`);
           }
         }
       }
-
-      // Mark expired files as inactive in database
-      const cleanedCount = await this.fileRepository.cleanupExpiredFiles();
       
       if (cleanedCount > 0) {
-        console.log(`🧹 Cleaned up ${cleanedCount} expired files`);
+        logger.info(`Cleaned up ${cleanedCount} expired files`);
       }
       
       return cleanedCount;
     } catch (error: any) {
-      console.error('Error during cleanup:', error);
+      logger.error({ err: error }, 'Error during cleanup');
       return 0;
     }
   }
@@ -396,6 +483,6 @@ export class FileManagerV2 {
    */
   async cleanup(): Promise<void> {
     await this.storageManager.cleanup();
-    console.log('📦 FileManagerV2 cleaned up');
+    logger.info('FileManagerV2 cleaned up');
   }
 }

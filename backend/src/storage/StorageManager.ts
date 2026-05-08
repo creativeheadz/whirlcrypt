@@ -1,6 +1,7 @@
 import { StorageProvider, StorageProviderType, StorageConfig } from './interfaces';
 import { LocalStorageProvider } from './providers/LocalStorageProvider';
 import { config } from '../config/config';
+import logger from '../utils/logger';
 
 export class StorageManager {
   private providers: Map<string, StorageProvider> = new Map();
@@ -34,7 +35,7 @@ export class StorageManager {
         throw new Error(`Unsupported storage provider: ${providerType}`);
     }
 
-    console.log(`✅ Storage initialized with provider: ${providerType}`);
+    logger.info(`Storage initialized with provider: ${providerType}`);
   }
 
   getProvider(name?: string): StorageProvider {
@@ -77,7 +78,7 @@ export class StorageManager {
       try {
         await provider.cleanup();
       } catch (error) {
-        console.error('Error cleaning up storage provider:', error);
+        logger.error({ err: error }, 'Error cleaning up storage provider');
       }
     }
     
@@ -87,6 +88,10 @@ export class StorageManager {
   // Convenience methods that delegate to the default provider
   async store(data: Buffer, filename: string, metadata?: any): Promise<string> {
     return this.defaultProvider.store(data, filename, metadata);
+  }
+
+  async storeFromPath(sourcePath: string, filename: string, metadata?: any): Promise<string> {
+    return this.defaultProvider.storeFromPath(sourcePath, filename, metadata);
   }
 
   async retrieve(storagePath: string): Promise<Buffer> {

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import { Download as DownloadIcon, Clock, AlertCircle, CheckCircle2, Lock } from 'lucide-react'
 import { ClientCrypto } from '../crypto/rfc8188'
-// import axios from 'axios' // (unused after streaming refactor)
 
 interface FileInfo {
   filename: string
@@ -32,22 +31,6 @@ const Download: React.FC = () => {
     keys: null,
     downloaded: false
   })
-
-  // Helper function to download using Blob
-  const downloadWithBlob = (data: Uint8Array, filename: string) => {
-    // Create blob from the typed array - use type assertion for library compatibility
-    const blob = new Blob([data as any], {
-      type: 'application/octet-stream'
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
 
   useEffect(() => {
     // Extract keys from URL fragment
@@ -80,8 +63,9 @@ const Download: React.FC = () => {
         throw new Error('Missing encryption key in URL');
       }
 
-      // Extract original filename from URL fragment
-      const filename = params.get('filename') || `decrypted-file-${id.substring(0, 8)}`
+      // Extract and sanitize original filename from URL fragment
+      const rawFilename = params.get('filename') || `decrypted-file-${id.substring(0, 8)}`
+      const filename = rawFilename.replace(/[<>"'&\\/:*?|]/g, '_').substring(0, 255)
 
       // Use fetch API with streaming for better memory efficiency
       const response = await fetch(`/api/download/${id}`, {
@@ -97,13 +81,19 @@ const Download: React.FC = () => {
         throw new Error('Response body is not available')
       }
 
-  // Use streaming decryption for better memory efficiency
-  console.log('Starting streaming download and decryption...')
+      // Get content length for accurate progress tracking
+      const contentLength = parseInt(response.headers.get('content-length') || '0', 10)
 
-  let fileWriter: any = null
-  let blobParts: Uint8Array[] = []
-  const BLOB_FLUSH_THRESHOLD = 25 * 1024 * 1024 // 25MB chunks for fallback
-  let receivedBytes = 0
+      let fileWriter: any = null
+      // Consolidated blob parts — periodically merge to reduce array size and GC pressure
+      let blobParts: Blob[] = []
+      let pendingChunks: Uint8Array[] = []
+      let pendingSize = 0
+      const BLOB_FLUSH_THRESHOLD = 50 * 1024 * 1024 // Merge every 50MB
+      const LARGE_FILE_WARNING_SIZE = 500 * 1024 * 1024 // Warn above 500MB without FSAA
+      let receivedBytes = 0
+      let decryptedBytes = 0
+      let largeFileWarned = false
 
       const useFileSystemAPI = 'showSaveFilePicker' in window
       if (useFileSystemAPI) {
@@ -124,18 +114,29 @@ const Download: React.FC = () => {
         state.keys.salt,
         {
           onChunk: async (chunk: Uint8Array) => {
+            decryptedBytes += chunk.length
             receivedBytes += chunk.length
             if (fileWriter) {
               await fileWriter.write(chunk)
             } else {
-              blobParts.push(chunk)
-              // Flush periodically to reduce memory pressure
-              if (blobParts.length > 1) {
-                const totalBuffered = blobParts.reduce((s,c)=>s+c.length,0)
-                if (totalBuffered >= BLOB_FLUSH_THRESHOLD) {
-                  // Create an object URL to progressively download flushed part (optional enhancement)
-                  // For now we keep accumulating but could stream to IndexedDB / partial download.
-                }
+              pendingChunks.push(chunk)
+              pendingSize += chunk.length
+
+              // Periodically consolidate pending chunks into a single Blob
+              // to reduce array length and memory fragmentation
+              if (pendingSize >= BLOB_FLUSH_THRESHOLD) {
+                blobParts.push(new Blob(pendingChunks as unknown as BlobPart[]))
+                pendingChunks = []
+                pendingSize = 0
+              }
+
+              // Warn once if this is a large file on a browser without FSAA
+              if (!largeFileWarned && contentLength > LARGE_FILE_WARNING_SIZE) {
+                largeFileWarned = true
+                setState(prev => ({
+                  ...prev,
+                  error: 'Large file warning: Your browser may run out of memory. Use Chrome or Edge for best results with large files.'
+                }))
               }
             }
           },
@@ -143,8 +144,13 @@ const Download: React.FC = () => {
             if (fileWriter) {
               await fileWriter.close()
             } else {
-              // Fallback: assemble final blob (only safe for moderate sizes)
+              // Consolidate any remaining pending chunks
+              if (pendingChunks.length > 0) {
+                blobParts.push(new Blob(pendingChunks as unknown as BlobPart[]))
+                pendingChunks = []
+              }
               const finalBlob = new Blob(blobParts, { type: 'application/octet-stream' })
+              blobParts = [] // Free references for GC
               const url = URL.createObjectURL(finalBlob)
               const a = document.createElement('a')
               a.href = url
@@ -157,12 +163,36 @@ const Download: React.FC = () => {
           }
         },
         (downloaded, decrypted) => {
-          const progress = Math.min(95, (decrypted / (downloaded || 1)) * 95)
-          setState(prev => ({ ...prev, progress }))
+          decryptedBytes = decrypted
+
+          // Calculate accurate progress:
+          // 0-60%: Download progress (network)
+          // 60-100%: Decryption progress (processing)
+          let progress = 0
+
+          if (contentLength > 0) {
+            // We know the total size, so calculate download progress accurately
+            const downloadProgress = Math.min(60, (downloaded / contentLength) * 60)
+            const decryptionProgress = Math.min(40, (decrypted / contentLength) * 40)
+            progress = downloadProgress + decryptionProgress
+          } else {
+            // Fallback: use decrypted bytes as progress indicator
+            // This will increase smoothly as data is processed
+            progress = Math.min(95, (decrypted / Math.max(downloaded, 1)) * 95)
+          }
+
+          // Ensure progress only moves forward (monotonic)
+          setState(prev => ({ ...prev, progress: Math.max(prev.progress, progress) }))
         }
       )
 
       setState(prev => ({ ...prev, progress: 100 }))
+
+      // Zero key material from memory after successful decryption
+      if (state.keys) {
+        state.keys.key.fill(0)
+        state.keys.salt.fill(0)
+      }
 
       // Set file info after successful decryption
       setState(prev => ({
@@ -185,17 +215,24 @@ const Download: React.FC = () => {
 
       let errorMessage = 'Download failed';
 
-      if (axios.isAxiosError(error)) {
-        // Network/HTTP error
-        errorMessage = error.response?.data?.error || `HTTP ${error.response?.status}: ${error.message}`;
-      } else if (error instanceof Error) {
+      const errorAny = error as any;
+      const rawMessage = errorAny?.message as string | undefined;
+      const errorName = errorAny?.name as string | undefined;
+
+      if (errorName === 'AbortError') {
+        // User cancelled the download (e.g. closing the file picker)
+        errorMessage = 'Download was cancelled.';
+      } else if (rawMessage) {
         // Decryption or other processing error
-        if (error.message.includes('Decryption failed')) {
-          errorMessage = `Decryption error: ${error.message}`;
-        } else if (error.message.includes('Invalid encrypted data')) {
-          errorMessage = `File corruption: ${error.message}`;
+        if (rawMessage.includes('Decryption failed')) {
+          errorMessage = `Decryption error: ${rawMessage}`;
+        } else if (rawMessage.includes('Invalid encrypted data')) {
+          errorMessage = `File corruption: ${rawMessage}`;
+        } else if (rawMessage.startsWith('HTTP ')) {
+          // HTTP/network error surfaced from fetch
+          errorMessage = rawMessage;
         } else {
-          errorMessage = `Processing error: ${error.message}`;
+          errorMessage = `Processing error: ${rawMessage}`;
         }
       }
 
@@ -245,7 +282,7 @@ const Download: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Download File
         </h1>
-        <p className="text-gray-600">
+        <p className="text-gray-700">
           Secure encrypted file download
         </p>
       </div>
@@ -277,12 +314,18 @@ const Download: React.FC = () => {
           {state.downloading && (
             <div className="mt-4">
               <div className="flex justify-between text-sm text-gray-600 mb-1">
-                <span>Downloading and decrypting...</span>
+                <span>
+                  {state.progress < 60
+                    ? `Downloading encrypted file...`
+                    : state.progress < 95
+                      ? `Decrypting file...`
+                      : `Finalizing...`}
+                </span>
                 <span>{Math.round(state.progress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${state.progress}%` }}
                 />
               </div>

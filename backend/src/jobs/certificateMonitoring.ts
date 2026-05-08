@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { CertificateTransparencyMonitor } from '../services/CertificateTransparencyMonitor';
 import { config } from '../config/config';
+import logger from '../utils/logger';
 
 /**
  * Certificate Transparency Monitoring Job
@@ -11,13 +12,15 @@ export class CertificateMonitoringJob {
   private monitor: CertificateTransparencyMonitor;
   private isRunning: boolean = false;
   private lastRun?: Date;
+  private scheduledTask: ReturnType<typeof cron.schedule> | null = null;
+  private initialTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // Initialize with domains from environment or config
     const monitoredDomains = this.getMonitoredDomains();
     this.monitor = new CertificateTransparencyMonitor(monitoredDomains);
     
-    console.log(`🔍 CT Monitor initialized with domains: ${monitoredDomains.join(', ')}`);
+    logger.info(`CT Monitor initialized with domains: ${monitoredDomains.join(', ')}`);
   }
 
   /**
@@ -27,7 +30,7 @@ export class CertificateMonitoringJob {
     // Run every 6 hours (adjust based on your security requirements)
     const schedule = process.env.CT_MONITOR_SCHEDULE || '0 */6 * * *';
     
-    cron.schedule(schedule, async () => {
+    this.scheduledTask = cron.schedule(schedule, async () => {
       await this.runMonitoring();
     }, {
       scheduled: true,
@@ -35,11 +38,26 @@ export class CertificateMonitoringJob {
     });
 
     // Run initial check after 1 minute
-    setTimeout(() => {
+    this.initialTimeout = setTimeout(() => {
       this.runMonitoring();
     }, 60000);
 
-    console.log(`🕐 Certificate monitoring job scheduled: ${schedule}`);
+    logger.info(`Certificate monitoring job scheduled: ${schedule}`);
+  }
+
+  /**
+   * Stop the certificate monitoring job
+   */
+  stop(): void {
+    if (this.scheduledTask) {
+      this.scheduledTask.stop();
+      this.scheduledTask = null;
+    }
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = null;
+    }
+    logger.info('Certificate monitoring job stopped');
   }
 
   /**
@@ -47,7 +65,7 @@ export class CertificateMonitoringJob {
    */
   async runMonitoring(): Promise<void> {
     if (this.isRunning) {
-      console.log('⏳ Certificate monitoring already running, skipping...');
+      logger.info('Certificate monitoring already running, skipping...');
       return;
     }
 
@@ -55,7 +73,7 @@ export class CertificateMonitoringJob {
     this.lastRun = new Date();
 
     try {
-      console.log('🔍 Starting certificate transparency monitoring...');
+      logger.info('Starting certificate transparency monitoring...');
       
       const results = await this.monitor.monitorAllDomains();
       
@@ -64,21 +82,21 @@ export class CertificateMonitoringJob {
       const totalSuspicious = results.reduce((sum, r) => sum + r.suspiciousCertificates.length, 0);
       const totalNew = results.reduce((sum, r) => sum + r.newCertificates, 0);
 
-      console.log(`✅ CT monitoring completed:`);
-      console.log(`  - Domains monitored: ${results.length}`);
-      console.log(`  - Total certificates found: ${totalCertificates}`);
-      console.log(`  - New certificates: ${totalNew}`);
-      console.log(`  - Suspicious certificates: ${totalSuspicious}`);
+      logger.info(`CT monitoring completed:`);
+      logger.info(`  - Domains monitored: ${results.length}`);
+      logger.info(`  - Total certificates found: ${totalCertificates}`);
+      logger.info(`  - New certificates: ${totalNew}`);
+      logger.info(`  - Suspicious certificates: ${totalSuspicious}`);
 
       // Store results for admin dashboard (optional)
       await this.storeMonitoringResults(results);
 
       if (totalSuspicious > 0) {
-        console.warn(`🚨 ${totalSuspicious} suspicious certificates detected! Check logs for details.`);
+        logger.warn(`${totalSuspicious} suspicious certificates detected! Check logs for details.`);
       }
 
     } catch (error) {
-      console.error('❌ Certificate monitoring failed:', error);
+      logger.error({ err: error }, 'Certificate monitoring failed');
     } finally {
       this.isRunning = false;
     }
@@ -134,10 +152,10 @@ export class CertificateMonitoringJob {
       };
 
       // Could store in database, send to monitoring service, etc.
-      console.log('📊 CT Monitoring Summary:', JSON.stringify(summary, null, 2));
+      logger.info({ summary }, 'CT Monitoring Summary');
 
     } catch (error) {
-      console.error('Failed to store CT monitoring results:', error);
+      logger.error({ err: error }, 'Failed to store CT monitoring results');
     }
   }
 
@@ -170,7 +188,7 @@ export class CertificateMonitoringJob {
    * Force run monitoring (for admin interface)
    */
   async forceRun(): Promise<void> {
-    console.log('🔄 Force running certificate monitoring...');
+    logger.info('Force running certificate monitoring...');
     await this.runMonitoring();
   }
 

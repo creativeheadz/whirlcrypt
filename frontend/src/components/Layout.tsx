@@ -1,8 +1,9 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Upload as UploadIcon, Settings, Github, Shield } from 'lucide-react'
+import { Upload as UploadIcon, Settings, Github, Shield, WifiOff } from 'lucide-react'
 import AnimatedBackground from './AnimatedBackground'
 import Logo from './Logo'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -10,11 +11,21 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
+  const isOnline = useOnlineStatus()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex flex-col relative">
       {/* Animated background */}
       <AnimatedBackground isUploading={false} />
+
+      {/* Offline banner */}
+      {!isOnline && (
+        <div role="alert" className="bg-red-600 text-white text-center py-2 px-4 text-sm font-medium relative z-20 flex items-center justify-center gap-2">
+          <WifiOff className="h-4 w-4" />
+          You are offline. Uploads and downloads require an internet connection.
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white/30 backdrop-blur-xl border-b border-black/10 shadow-lg relative z-10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,6 +57,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 <Settings className="h-4 w-4" />
                 <span>Admin</span>
+              </Link>
+
+              <Link
+                to="/security"
+                className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  location.pathname === '/security'
+                    ? 'bg-orange-500/20 text-orange-700 backdrop-blur-sm border border-orange-400/30 shadow-lg'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/20 backdrop-blur-sm'
+                }`}
+              >
+                <Shield className="h-4 w-4" />
+                <span className="hidden sm:inline">Security</span>
               </Link>
 
               <a

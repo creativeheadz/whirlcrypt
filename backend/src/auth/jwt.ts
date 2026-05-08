@@ -21,7 +21,22 @@ export interface MFAChallenge {
 }
 
 export class JWTManager {
-  private static readonly JWT_SECRET = process.env.JWT_SECRET || 'whirlcrypt-jwt-secret-change-in-production';
+  private static readonly JWT_SECRET = (() => {
+    const secret = process.env.JWT_SECRET;
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (!secret || secret === 'whirlcrypt-jwt-secret-change-in-production') {
+      if (isProduction) {
+        console.error('FATAL: JWT_SECRET must be set in production (min 32 characters).');
+        process.exit(1);
+      }
+      return 'whirlcrypt-jwt-secret-dev-only-not-for-production-use';
+    }
+    if (isProduction && secret.length < 32) {
+      console.error('FATAL: JWT_SECRET must be at least 32 characters long in production.');
+      process.exit(1);
+    }
+    return secret;
+  })();
   private static readonly JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
   private static readonly MFA_CHALLENGE_EXPIRES_IN = '5m'; // 5 minutes for MFA challenge
 
@@ -193,8 +208,8 @@ export class JWTManager {
   static validateConfiguration(): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    if (this.JWT_SECRET === 'whirlcrypt-jwt-secret-change-in-production') {
-      errors.push('JWT_SECRET is using default value - change in production');
+    if (this.JWT_SECRET.includes('dev-only-not-for-production')) {
+      errors.push('JWT_SECRET is using development default - set a proper secret for production');
     }
 
     if (this.JWT_SECRET.length < 32) {
@@ -216,19 +231,8 @@ export class JWTManager {
 // Validate configuration on module load
 const configValidation = JWTManager.validateConfiguration();
 if (!configValidation.valid) {
-  const criticalErrors = configValidation.errors.filter(error =>
-    error.includes('default value') || error.includes('32 characters')
-  );
-
-  if (criticalErrors.length > 0) {
-    console.error('🔴 CRITICAL JWT Configuration Errors:');
-    criticalErrors.forEach(error => {
-      console.error(`   - ${error}`);
-    });
-    console.error('🔴 Application startup FAILED. Fix JWT configuration and restart.');
-    process.exit(1);
-  } else {
-    console.warn('⚠️  JWT Configuration Issues:');
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('JWT Configuration Issues (development mode):');
     configValidation.errors.forEach(error => {
       console.warn(`   - ${error}`);
     });

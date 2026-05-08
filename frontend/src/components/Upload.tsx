@@ -5,6 +5,7 @@ import { ClientCrypto } from '../crypto/rfc8188'
 import JSZip from 'jszip'
 import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
+import { chunkedUpload, cancelChunkedUpload } from '../utils/chunkedUpload'
 
 interface UploadState {
   file: File | null
@@ -12,12 +13,15 @@ interface UploadState {
   uploading: boolean
   progress: number
   zipProgress: number
+  uploadStatus: string
   error: string | null
   shareUrl: string | null
   retentionHours: number
   isFolder: boolean
   folderName: string | null
 }
+
+const MAX_FILE_SIZE = 4294967296 // 4GB hard limit
 
 const UploadPage: React.FC = () => {
   const [state, setState] = useState<UploadState>({
@@ -26,6 +30,7 @@ const UploadPage: React.FC = () => {
     uploading: false,
     progress: 0,
     zipProgress: 0,
+    uploadStatus: '',
     error: null,
     shareUrl: null,
     retentionHours: 24,
@@ -34,7 +39,25 @@ const UploadPage: React.FC = () => {
   })
 
   const [copied, setCopied] = useState(false)
+  const [serverMaxFileSize, setServerMaxFileSize] = useState<number>(MAX_FILE_SIZE)
+  const [uploadAbortController, setUploadAbortController] = useState<AbortController | null>(null)
+  const [currentUploadId, setCurrentUploadId] = useState<string | null>(null)
   const { showError, showSuccess, showWarning, showInfo } = useToast()
+
+  // Fetch server config on mount to get actual limits
+  React.useEffect(() => {
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(data => {
+        if (data.maxFileSize) {
+          // Use the smaller of frontend hard limit and server limit
+          setServerMaxFileSize(Math.min(data.maxFileSize, MAX_FILE_SIZE))
+        }
+      })
+      .catch(() => {
+        // Fall back to frontend default
+      })
+  }, [])
 
   // Calculate total size of files
   const calculateTotalSize = (files: File[]): number => {
@@ -61,10 +84,15 @@ const UploadPage: React.FC = () => {
     if (acceptedFiles.length > 0) {
       const totalSize = calculateTotalSize(acceptedFiles)
 
-      if (totalSize > 4294967296) {
+      if (totalSize === 0) {
+        showError('Empty File', 'Please select a file with content.')
+        return
+      }
+
+      if (totalSize > serverMaxFileSize) {
         showError(
           'Files Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
+          `Total size is ${formatFileSize(totalSize)}. Individual uploads are limited to ${formatFileSize(serverMaxFileSize)}.`
         )
         return
       }
@@ -100,7 +128,7 @@ const UploadPage: React.FC = () => {
   const { getRootProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true, // Allow multiple files for folder uploads
-    maxSize: 4294967296, // 4GB per file, but we'll check total size in onDrop
+    maxSize: serverMaxFileSize,
     disabled: (state.file !== null || state.files !== null) || state.uploading, // Disable dropzone once file/folder is selected or uploading
     noClick: true, // Disable click to open file dialog - we'll handle this manually
     onDropRejected: (rejectedFiles) => {
@@ -108,7 +136,7 @@ const UploadPage: React.FC = () => {
       let errorMsg = 'Files rejected'
 
       if (rejection?.code === 'file-too-large') {
-        errorMsg = 'One or more files too large (max 4GB per file)'
+        errorMsg = `One or more files too large (max ${formatFileSize(serverMaxFileSize)} per upload)`
       } else if (rejection?.code === 'too-many-files') {
         errorMsg = 'Too many files selected'
       }
@@ -123,10 +151,10 @@ const UploadPage: React.FC = () => {
     if (files.length > 0) {
       const totalSize = calculateTotalSize(files)
 
-      if (totalSize > 4294967296) {
+      if (totalSize > serverMaxFileSize) {
         showError(
           'Files Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
+          `Total size is ${formatFileSize(totalSize)}. Individual uploads are limited to ${formatFileSize(serverMaxFileSize)}.`
         )
         return
       }
@@ -166,10 +194,10 @@ const UploadPage: React.FC = () => {
     if (files.length > 0) {
       const totalSize = calculateTotalSize(files)
 
-      if (totalSize > 4294967296) {
+      if (totalSize > serverMaxFileSize) {
         showError(
           'Folder Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
+          `Total size is ${formatFileSize(totalSize)}. Individual uploads are limited to ${formatFileSize(serverMaxFileSize)}.`
         )
         return
       }
@@ -237,28 +265,32 @@ const UploadPage: React.FC = () => {
   const handleUpload = async () => {
     if (!state.file && !state.files) return
 
-    setState(prev => ({ ...prev, uploading: true, progress: 0, zipProgress: 0, error: null }))
+    const abortController = new AbortController()
+    setUploadAbortController(abortController)
+    setCurrentUploadId(null)
+    setState(prev => ({ ...prev, uploading: true, progress: 0, zipProgress: 0, uploadStatus: '', error: null }))
 
     try {
       let fileToUpload: File
 
       // Handle folder upload - create ZIP first
       if (state.files && state.isFolder) {
-        setState(prev => ({ ...prev, progress: 5 })) // 5% for starting ZIP creation
+        setState(prev => ({ ...prev, progress: 5, uploadStatus: 'Creating ZIP archive...' }))
 
         fileToUpload = await createZipFromFiles(
           state.files,
           (zipProgress) => setState(prev => ({
             ...prev,
             zipProgress,
-            progress: 5 + (zipProgress * 0.25) // 25% for ZIP creation (5% to 30%)
+            progress: 5 + (zipProgress * 0.25), // 25% for ZIP creation (5% to 30%)
+            uploadStatus: `Creating ZIP archive (${Math.round(zipProgress)}%)...`
           }))
         )
 
-        setState(prev => ({ ...prev, progress: 30, zipProgress: 100 }))
+        setState(prev => ({ ...prev, progress: 30, zipProgress: 100, uploadStatus: 'ZIP created, preparing upload...' }))
       } else if (state.file) {
         fileToUpload = state.file
-        setState(prev => ({ ...prev, progress: 5 }))
+        setState(prev => ({ ...prev, progress: 5, uploadStatus: 'Preparing upload...' }))
       } else {
         throw new Error('No file or folder selected')
       }
@@ -266,95 +298,50 @@ const UploadPage: React.FC = () => {
       // Generate encryption keys
       const { key, salt } = await ClientCrypto.generateKeys()
 
-      // Encrypt file (ZIP or single file) with larger record size for better performance
-      // Use streaming encryption to avoid memory issues with large files
-      const encryptedChunks: Uint8Array[] = []
-      for await (const chunk of ClientCrypto.encryptFileStream(
-        fileToUpload,
+      // Use chunked upload for better browser compatibility and memory efficiency
+      const response = await chunkedUpload({
+        file: fileToUpload,
         key,
         salt,
-        65536, // 64KB record size (16x larger for better performance)
-        (progress) => setState(prev => ({
-          ...prev,
-          progress: 30 + (progress * 0.4) // 40% for encryption (30% to 70%)
-        }))
-      )) {
-        encryptedChunks.push(chunk)
-      }
-
-      // Upload to server
-      setState(prev => ({ ...prev, progress: 70 }))
-
-      // For files > 2GB, we need to use fetch API instead of FormData/Blob
-      // Create a multipart/form-data request manually using ReadableStream
-      const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2)
-      
-      // Build multipart body as a generator
-      async function* generateMultipartBody() {
-        // Add retentionHours field
-        yield new TextEncoder().encode(
-          `--${boundary}\r\n` +
-          `Content-Disposition: form-data; name="retentionHours"\r\n\r\n` +
-          `${state.retentionHours}\r\n`
-        )
-        
-        // Add file field header
-        yield new TextEncoder().encode(
-          `--${boundary}\r\n` +
-          `Content-Disposition: form-data; name="file"; filename="${fileToUpload.name}"\r\n` +
-          `Content-Type: application/octet-stream\r\n\r\n`
-        )
-        
-        // Add encrypted file data in chunks
-        for (const chunk of encryptedChunks) {
-          yield chunk
-        }
-        
-        // Add closing boundary
-        yield new TextEncoder().encode(`\r\n--${boundary}--\r\n`)
-      }
-
-      // Create ReadableStream from generator
-      const stream = new ReadableStream({
-        async start(controller) {
-          for await (const chunk of generateMultipartBody()) {
-            controller.enqueue(chunk)
-          }
-          controller.close()
-        }
-      })
-
-      // Upload using fetch API
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
+        retentionHours: state.retentionHours,
+        onProgress: (progress, status) => {
+          setState(prev => ({
+            ...prev,
+            progress,
+            uploadStatus: status
+          }))
         },
-        body: stream
-        // @ts-ignore - duplex is required for streaming but not in TS types yet
-        , duplex: 'half'
-      } as RequestInit)
-
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed: ${uploadResponse.statusText}`)
-      }
-
-      const response = await uploadResponse.json()
+        onError: (error) => {
+          throw error
+        },
+        onUploadId: (id) => setCurrentUploadId(id),
+        abortSignal: abortController.signal
+      })
 
       // Generate shareable URL with embedded keys and filename
       const shareUrl = ClientCrypto.generateShareUrl(
-        response.id,  // Direct property, not response.data.id
+        response.id,
         key,
         salt,
         window.location.origin,
-        fileToUpload.name // Include original filename in URL fragment
+        fileToUpload.name
       )
+
+      // Zero key material from memory after use
+      key.fill(0)
+      salt.fill(0)
+
+      setUploadAbortController(null)
+      setCurrentUploadId(null)
+      // Persist share URL so it survives accidental page close
+      try { sessionStorage.setItem('lastShareUrl', shareUrl) } catch {}
 
       setState(prev => ({
         ...prev,
         uploading: false,
         progress: 100,
         zipProgress: 0,
+        uploadStatus: 'Complete!',
         shareUrl,
         error: null
       }))
@@ -367,22 +354,39 @@ const UploadPage: React.FC = () => {
 
     } catch (error) {
       console.error('Upload error:', error)
-      const errorMessage = axios.isAxiosError(error)
+      const rawErrorMessage = axios.isAxiosError(error)
         ? error.response?.data?.error || 'Upload failed'
         : error instanceof Error
           ? error.message
           : 'Upload failed'
+      // Sanitize to prevent any HTML injection from server responses
+      const errorMessage = String(rawErrorMessage).replace(/<[^>]*>/g, '')
 
+      setUploadAbortController(null)
+      setCurrentUploadId(null)
       setState(prev => ({
         ...prev,
         uploading: false,
         progress: 0,
         zipProgress: 0,
+        uploadStatus: '',
         error: errorMessage
       }))
 
       // Show error notification
-      showError('Upload Failed', errorMessage)
+      if (errorMessage !== 'Upload cancelled') {
+        showError('Upload Failed', errorMessage)
+      }
+    }
+  }
+
+  const handleCancelUpload = async () => {
+    if (uploadAbortController) {
+      uploadAbortController.abort()
+      if (currentUploadId) {
+        await cancelChunkedUpload(currentUploadId)
+      }
+      showWarning('Upload Cancelled', 'The upload has been cancelled.')
     }
   }
 
@@ -524,7 +528,7 @@ const UploadPage: React.FC = () => {
                 {isDragActive ? 'Drop files or folders here' : 'Choose files or folders to upload'}
               </p>
               <p className="text-gray-700 mb-4">
-                Drag and drop files or folders here, or use the buttons below (max 4GB total)
+                Drag and drop files or folders here, or use the buttons below (max {formatFileSize(serverMaxFileSize)} per upload)
               </p>
               <div className="flex gap-3 justify-center">
                 <label className="btn-primary flex items-center cursor-pointer">
@@ -535,6 +539,7 @@ const UploadPage: React.FC = () => {
                     multiple
                     className="hidden"
                     onChange={handleFileSelect}
+                    aria-label="Select files to upload"
                   />
                 </label>
                 <label
@@ -549,6 +554,7 @@ const UploadPage: React.FC = () => {
                     multiple
                     className="hidden"
                     onChange={handleFolderSelect}
+                    aria-label="Select folder to upload"
                   />
                 </label>
               </div>
@@ -603,10 +609,7 @@ const UploadPage: React.FC = () => {
             {/* Overall Progress */}
             <div>
               <div className="flex justify-between text-sm text-gray-700 mb-1">
-                <span>
-                  {state.progress < 30 && state.isFolder ? 'Creating ZIP archive...' :
-                   state.progress < 70 ? 'Encrypting...' : 'Uploading...'}
-                </span>
+                <span>{state.uploadStatus || 'Processing...'}</span>
                 <span>{Math.round(state.progress)}%</span>
               </div>
               <div className="w-full bg-gray-200/70 rounded-full h-2">
@@ -615,6 +618,16 @@ const UploadPage: React.FC = () => {
                   style={{ width: `${state.progress}%` }}
                 />
               </div>
+            </div>
+
+            {/* Cancel Button */}
+            <div className="flex justify-center">
+              <button
+                onClick={handleCancelUpload}
+                className="btn-secondary text-sm text-red-700 border-red-300 hover:bg-red-50"
+              >
+                Cancel Upload
+              </button>
             </div>
           </div>
         )}
@@ -650,11 +663,13 @@ const UploadPage: React.FC = () => {
                     type="text"
                     value={state.shareUrl}
                     readOnly
-                    className="input flex-1 mr-2 font-mono text-xs"
+                    aria-label="Share URL with encryption key"
+                    className="input flex-1 mr-2 font-mono text-sm sm:text-xs"
                   />
                   <button
                     onClick={handleCopyLink}
-                    className={`btn-secondary flex items-center ${copied ? 'bg-green-100/90 text-green-800 border-green-400/60' : ''}`}
+                    aria-label={copied ? 'URL copied to clipboard' : 'Copy share URL'}
+                    className={`btn-secondary flex items-center whitespace-nowrap ${copied ? 'bg-green-100/90 text-green-800 border-green-400/60' : ''}`}
                   >
                     <Copy className="h-4 w-4 mr-1" />
                     {copied ? 'Copied!' : 'Copy'}
@@ -665,7 +680,7 @@ const UploadPage: React.FC = () => {
               <div className="text-xs text-gray-700 space-y-1">
                 <p>• Link expires in {state.retentionHours} hour{state.retentionHours !== 1 ? 's' : ''}</p>
                 <p>• Encryption keys are embedded in the URL fragment (not sent to server)</p>
-                <p>• Share this link securely - anyone with it can download the {state.isFolder ? 'folder (as ZIP)' : 'file'}</p>
+                <p>• <strong>Share only via secure channels</strong> (Signal, encrypted email) - anyone with this link can decrypt the {state.isFolder ? 'folder' : 'file'}</p>
                 {state.isFolder && (
                   <p>• Recipients can extract the ZIP to restore the original folder structure</p>
                 )}
@@ -692,7 +707,7 @@ const UploadPage: React.FC = () => {
             <p>• <strong className="text-orange-600">Automatic expiration:</strong> Files auto-delete</p>
             <p>• <strong className="text-orange-600">No tracking:</strong> No ads or user tracking</p>
             <p>• <strong className="text-orange-600">Open source:</strong> Transparent security</p>
-            <p>• <strong className="text-orange-600">4GB limit:</strong> Total size limit per upload</p>
+            <p>• <strong className="text-orange-600">{formatFileSize(serverMaxFileSize)} limit:</strong> Maximum size per upload</p>
           </div>
         </div>
       </div>

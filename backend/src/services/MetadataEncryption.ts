@@ -29,9 +29,25 @@ export class MetadataEncryption {
   private static readonly SALT_LENGTH = 32; // 256 bits
   private static readonly TAG_LENGTH = 16; // 128 bits
   
-  // Master key for metadata encryption (should be from environment)
-  private static readonly MASTER_KEY = process.env.METADATA_ENCRYPTION_KEY || 
-    'whirlcrypt-metadata-master-key-change-in-production-32-bytes!!';
+  // Master key for metadata encryption
+  private static readonly MASTER_KEY = (() => {
+    const key = process.env.METADATA_ENCRYPTION_KEY;
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (!key || key === 'your-secure-32-byte-base64-key-here-change-in-production') {
+      if (isProduction) {
+        console.error('FATAL: METADATA_ENCRYPTION_KEY must be set in production.');
+        console.error('Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"');
+        process.exit(1);
+      }
+      // Allow insecure default in development only
+      return 'whirlcrypt-metadata-master-key-dev-only-not-for-production!!';
+    }
+    if (isProduction && key.length < 32) {
+      console.error('FATAL: METADATA_ENCRYPTION_KEY must be at least 32 characters long.');
+      process.exit(1);
+    }
+    return key;
+  })();
 
   /**
    * Derive encryption key from master key using HKDF-like approach

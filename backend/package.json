@@ -16,6 +16,9 @@
     "admin:audit": "ts-node src/cli/admin-cli.ts audit-log",
     "admin:init-db": "ts-node src/cli/admin-cli.ts init-db",
     "admin:create": "ts-node src/cli/create-admin.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "security:audit": "npm audit --audit-level=moderate",
     "security:audit-fix": "npm audit fix",
     "security:socket": "npx @socketsecurity/cli@latest audit",
@@ -37,6 +40,7 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.2",
     "pg": "^8.11.3",
+    "pino": "^10.3.0",
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
     "swagger-ui-express": "^5.0.1",
@@ -53,14 +57,17 @@
     "@types/node": "^20.4.5",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.10.2",
+    "@types/pino": "^7.0.4",
     "@types/qrcode": "^1.5.5",
     "@types/speakeasy": "^2.0.10",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^9.0.2",
     "@types/yamljs": "^0.2.34",
+    "@vitest/coverage-v8": "^4.0.18",
     "license-checker": "^25.0.1",
     "ts-node": "^10.9.2",
     "tsx": "^3.12.7",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "vitest": "^4.0.18"
   }
 }

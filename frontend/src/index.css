@@ -18,7 +18,7 @@
 
 @layer components {
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 backdrop-blur-sm;
+    @apply px-4 py-3 sm:py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 backdrop-blur-sm min-h-[44px] sm:min-h-0;
   }
   
   .btn-primary {

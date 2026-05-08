@@ -27,7 +27,7 @@ const AdminLogin: React.FC<Props> = ({ onSuccess }) => {
         setRequiresMFA(true)
         setChallengeToken(res.data.challengeToken)
       } else if (res.data?.token) {
-        localStorage.setItem('adminToken', res.data.token)
+        sessionStorage.setItem('adminToken', res.data.token)
         onSuccess()
       } else {
         setError('Unexpected response from server')
@@ -55,7 +55,7 @@ const AdminLogin: React.FC<Props> = ({ onSuccess }) => {
       })
 
       if (res.data?.token) {
-        localStorage.setItem('adminToken', res.data.token)
+        sessionStorage.setItem('adminToken', res.data.token)
         onSuccess()
       } else {
         setError('Unexpected response from server')

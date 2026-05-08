@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { AttackLogger } from '../services/AttackLogger';
-import { BanManager } from '../services/BanManager';
 import { DatabaseConnection } from '../database/connection';
 import { handleCSPViolation } from '../middleware/security';
+import logger from '../utils/logger';
 
 const router = Router();
 const attackLogger = new AttackLogger();
-const banManager = new BanManager();
+
 
 /**
  * CSP Violation Report Endpoint
@@ -34,64 +34,10 @@ router.get('/stats', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting security stats:', error);
+    logger.error({ err: error }, 'Error getting security stats');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to retrieve security statistics' 
-    });
-  }
-});
-
-/**
- * Get Wall of Shame data for public display
- * GET /api/security/wall-of-shame
- */
-router.get('/wall-of-shame', async (req: Request, res: Response) => {
-  try {
-    const wallOfShame = await banManager.getWallOfShame();
-    
-    // Add some fun statistics
-    const totalPermanentBans = wallOfShame.permanentBans.length;
-    const totalTemporaryBans = wallOfShame.temporaryBans.length;
-    
-    res.json({
-      success: true,
-      data: {
-        permanentBans: wallOfShame.permanentBans.map(entry => ({
-          maskedIP: entry.maskedIP,
-          country: entry.country,
-          countryFlag: entry.countryFlag,
-          reason: entry.reason,
-          category: entry.category,
-          offendingRequest: entry.offendingRequest,
-          bannedAt: entry.bannedAt,
-          sarcasticComment: entry.sarcasticComment
-        })),
-        temporaryBans: wallOfShame.temporaryBans.map(entry => ({
-          maskedIP: entry.maskedIP,
-          country: entry.country,
-          countryFlag: entry.countryFlag,
-          reason: entry.reason,
-          category: entry.category,
-          offendingRequest: entry.offendingRequest,
-          bannedAt: entry.bannedAt,
-          expiresAt: entry.expiresAt,
-          timeLeft: entry.timeLeft,
-          sarcasticComment: entry.sarcasticComment
-        })),
-        statistics: {
-          totalPermanentBans,
-          totalTemporaryBans,
-          totalBans: totalPermanentBans + totalTemporaryBans,
-          lastUpdated: new Date().toISOString()
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error getting wall of shame:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to retrieve wall of shame data' 
     });
   }
 });
@@ -117,7 +63,7 @@ router.get('/trends', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting attack trends:', error);
+    logger.error({ err: error }, 'Error getting attack trends');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to retrieve attack trends' 
@@ -141,7 +87,7 @@ router.get('/geography', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting attack geography:', error);
+    logger.error({ err: error }, 'Error getting attack geography');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to retrieve geographic data' 
@@ -196,7 +142,7 @@ router.get('/live-feed', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting live feed:', error);
+    logger.error({ err: error }, 'Error getting live feed');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to retrieve live attack feed' 
@@ -276,27 +222,27 @@ router.get('/achievements', async (req: Request, res: Response) => {
             description: "Award for the most ridiculous non-existent endpoint",
             winner: creativeFourOhFour.rows[0]?.path || "No winner yet",
             count: creativeFourOhFour.rows[0]?.count || 0,
-            icon: "🏆"
+            icon: ""
           },
           {
             title: "WordPress Obsessed",
             description: "Can't stop looking for wp-admin",
             winner: maskIP(wordpressObsessed.rows[0]?.ip || "No winner yet"),
             count: wordpressObsessed.rows[0]?.count || 0,
-            icon: "🎯"
+            icon: ""
           },
           {
             title: "Scanner Supreme",
             description: "Most systematic endpoint probing",
             winner: maskIP(scannerSupreme.rows[0]?.ip || "No winner yet"),
             uniquePaths: scannerSupreme.rows[0]?.unique_paths || 0,
-            icon: "🔍"
+            icon: ""
           },
           {
             title: "Global Traveler",
             description: "Attacks detected from multiple countries",
             count: globalTraveler.rows[0]?.country_count || 0,
-            icon: "🌍"
+            icon: ""
           },
           {
             title: "Speed Demon",
@@ -304,14 +250,14 @@ router.get('/achievements', async (req: Request, res: Response) => {
             winner: maskIP(speedDemon.rows[0]?.ip || "No winner yet"),
             attacksPerSecond: speedDemon.rows[0] ? 
               (speedDemon.rows[0].count / Math.max(speedDemon.rows[0].duration_seconds, 1)).toFixed(2) : 0,
-            icon: "⚡"
+            icon: ""
           }
         ],
         lastUpdated: new Date().toISOString()
       }
     });
   } catch (error) {
-    console.error('Error getting achievements:', error);
+    logger.error({ err: error }, 'Error getting achievements');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to retrieve achievements' 
@@ -358,7 +304,7 @@ router.get('/system-health', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error getting system health:', error);
+    logger.error({ err: error }, 'Error getting system health');
     res.status(500).json({ 
       success: false, 
       error: 'System health check failed',

@@ -1,6 +1,7 @@
 import { Pool, Client, PoolConfig } from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import logger from '../utils/logger';
 
 export class DatabaseConnection {
   private static pool: Pool | null = null;
@@ -27,17 +28,17 @@ export class DatabaseConnection {
       
       // Handle pool errors
       this.pool.on('error', (err: Error) => {
-        console.error('Unexpected error on idle database client:', err);
+        logger.error({ err: err }, 'Unexpected error on idle database client');
       });
 
       // Log pool events in development
       if (process.env.NODE_ENV === 'development') {
         this.pool.on('connect', () => {
-          console.log('📦 New database client connected');
+          logger.info('New database client connected');
         });
         
         this.pool.on('remove', () => {
-          console.log('📦 Database client removed');
+          logger.info('Database client removed');
         });
       }
     }
@@ -53,7 +54,7 @@ export class DatabaseConnection {
       client.release();
       return true;
     } catch (error) {
-      console.error('Database connection test failed:', error);
+      logger.error({ err: error }, 'Database connection test failed');
       return false;
     }
   }
@@ -68,12 +69,12 @@ export class DatabaseConnection {
       
       try {
         await client.query(schema);
-        console.log('✅ Database schema initialized successfully');
+        logger.info('Database schema initialized successfully');
       } finally {
         client.release();
       }
     } catch (error) {
-      console.error('❌ Failed to initialize database schema:', error);
+      logger.error({ err: error }, 'Failed to initialize database schema');
       throw error;
     }
   }
@@ -100,27 +101,37 @@ export class DatabaseConnection {
       if (result.rows.length === 0) {
         // Create database
         await adminClient.query(`CREATE DATABASE "${dbName}"`);
-        console.log(`✅ Database "${dbName}" created successfully`);
+        logger.info(`Database "${dbName}" created successfully`);
         
-        // Create user if not exists
+        // Create user if not exists (use DO block to safely parameterize password)
         try {
           await adminClient.query(
-            `CREATE USER "${config.user}" WITH PASSWORD '${config.password}'`
+            `DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = $1) THEN
+                EXECUTE format('CREATE USER %I WITH PASSWORD %L', $1, $2);
+              END IF;
+            END
+            $$;`,
+            [config.user, config.password]
           );
-          console.log(`✅ User "${config.user}" created successfully`);
+          logger.info(`User "${config.user}" created or already exists`);
         } catch (userError: any) {
           if (userError.code === '42710') { // User already exists
-            console.log(`ℹ️ User "${config.user}" already exists`);
+            logger.info(`User "${config.user}" already exists`);
           } else {
             throw userError;
           }
         }
 
-        // Grant privileges
-        await adminClient.query(`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${config.user}"`);
-        console.log(`✅ Privileges granted to "${config.user}"`);
+        // Grant privileges (use format() to safely quote identifiers)
+        await adminClient.query(
+          `DO $$ BEGIN EXECUTE format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', $1, $2); END $$;`,
+          [dbName, config.user]
+        );
+        logger.info(`Privileges granted to "${config.user}"`);
       } else {
-        console.log(`ℹ️ Database "${dbName}" already exists`);
+        logger.info(`Database "${dbName}" already exists`);
       }
     } finally {
       await adminClient.end();
@@ -131,7 +142,7 @@ export class DatabaseConnection {
     if (this.pool) {
       await this.pool.end();
       this.pool = null;
-      console.log('📦 Database pool closed');
+      logger.info('Database pool closed');
     }
   }
 

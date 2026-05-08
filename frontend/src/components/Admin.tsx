@@ -55,8 +55,9 @@ const Admin: React.FC = () => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        await axios.get('/api/admin/auth/me')
-        setIsAuthenticated(true)
+        const res = await fetch('/api/admin/auth/me', { credentials: 'same-origin' })
+        const data = await res.json()
+        setIsAuthenticated(data.authenticated === true)
       } catch {
         setIsAuthenticated(false)
       } finally {
@@ -103,6 +104,9 @@ const Admin: React.FC = () => {
   }, [isAuthenticated])
 
   const handleCleanup = async () => {
+    if (!window.confirm('This will permanently delete all expired files. This action cannot be undone. Continue?')) {
+      return
+    }
     setCleanupLoading(true)
     setCleanupResult(null)
 
@@ -152,7 +156,7 @@ const Admin: React.FC = () => {
     } catch (e) {
       // ignore errors; we'll still clear local state
     } finally {
-      localStorage.removeItem('adminToken')
+      sessionStorage.removeItem('adminToken')
       setIsAuthenticated(false)
       setStats(null)
       setConfig(null)
@@ -361,6 +365,7 @@ const Admin: React.FC = () => {
                   <input
                     type="number"
                     min="1"
+                    max="4096"
                     value={formatSizeInput(configForm.maxFileSize)}
                     onChange={(e) => setConfigForm(prev => ({
                       ...prev,

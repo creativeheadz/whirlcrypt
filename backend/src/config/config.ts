@@ -1,5 +1,70 @@
 import { RetentionConfig } from '../types';
 
+/**
+ * Validate configuration at startup and warn/fail on issues
+ */
+function validateConfig(cfg: AppConfig): void {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const isProduction = cfg.nodeEnv === 'production';
+
+  // Port validation
+  if (cfg.port < 1 || cfg.port > 65535) {
+    errors.push(`PORT must be between 1 and 65535 (got ${cfg.port})`);
+  }
+
+  // File size validation
+  if (cfg.retention.maxFileSize < 1024) {
+    errors.push(`MAX_FILE_SIZE must be at least 1024 bytes (got ${cfg.retention.maxFileSize})`);
+  }
+  if (cfg.retention.maxFileSize > 4294967296) {
+    warnings.push(`MAX_FILE_SIZE exceeds 4GB (${cfg.retention.maxFileSize}). Frontend limit is 4GB.`);
+  }
+
+  // Retention validation
+  if (cfg.retention.defaultRetentionHours < 1) {
+    errors.push('DEFAULT_RETENTION_HOURS must be at least 1');
+  }
+  if (cfg.retention.defaultRetentionHours > cfg.retention.maxRetentionHours) {
+    errors.push('DEFAULT_RETENTION_HOURS cannot exceed MAX_RETENTION_HOURS');
+  }
+
+  // Rate limiting validation
+  if (cfg.rateLimiting.maxRequests < 1) {
+    errors.push('RATE_LIMIT_MAX_REQUESTS must be at least 1');
+  }
+
+  // Production-specific checks
+  if (isProduction) {
+    if (cfg.corsOrigin.some(o => o.includes('localhost'))) {
+      errors.push('CORS_ORIGIN contains localhost — not allowed in production');
+    }
+    if (!process.env.JWT_SECRET) {
+      errors.push('JWT_SECRET must be set in production');
+    }
+    if (!process.env.METADATA_ENCRYPTION_KEY) {
+      errors.push('METADATA_ENCRYPTION_KEY must be set in production');
+    }
+    if (cfg.database.password === 'whirlcrypt_password') {
+      errors.push('DB_PASSWORD is using the default value — must be changed for production');
+    }
+  }
+
+  if (warnings.length > 0) {
+    console.warn('Configuration warnings:');
+    warnings.forEach(w => console.warn(`  - ${w}`));
+  }
+
+  if (errors.length > 0) {
+    console.error('Configuration errors:');
+    errors.forEach(e => console.error(`  - ${e}`));
+    if (isProduction) {
+      console.error('Aborting startup due to configuration errors in production mode.');
+      process.exit(1);
+    }
+  }
+}
+
 export interface DatabaseConfig {
   host: string;
   port: number;
@@ -93,7 +158,7 @@ export const config: AppConfig = {
     defaultRetentionHours: parseInt(process.env.DEFAULT_RETENTION_HOURS || '24'),
     maxRetentionHours: parseInt(process.env.MAX_RETENTION_HOURS || '168'), // 7 days
     cleanupIntervalMinutes: parseInt(process.env.CLEANUP_INTERVAL_MINUTES || '60'),
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '104857600'), // 100MB
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '4294967296'), // 4GB (matches frontend limit)
     allowedExtensions: process.env.ALLOWED_EXTENSIONS?.split(',').filter(ext => ext.trim() !== '') || undefined
   },
 
@@ -102,3 +167,6 @@ export const config: AppConfig = {
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100')
   }
 };
+
+// Validate configuration at startup
+validateConfig(config);

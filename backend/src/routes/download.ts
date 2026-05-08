@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { getFileManager } from '../services/fileManagerService';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -12,6 +13,12 @@ const router = Router();
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+
+    // Validate ID format (UUID v4)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      return res.status(400).json({ error: 'Invalid file ID format' });
+    }
+
     const fileManager = getFileManager();
 
     // Parse decryption key from request headers or body
@@ -61,7 +68,7 @@ router.get('/:id', async (req: Request, res: Response) => {
           return;
         }
       } catch (streamError) {
-        console.warn('Streaming failed, falling back to buffer method:', streamError);
+        logger.warn({ err: streamError }, 'Streaming failed, falling back to buffer method');
       }
     }
 
@@ -78,15 +85,15 @@ router.get('/:id', async (req: Request, res: Response) => {
     res.send(encryptedData);
 
   } catch (error) {
-    console.error('Download error for file ID:', req.params.id, error);
+    logger.error({ err: error, fileId: req.params.id }, 'Download error for file');
 
     // More detailed error logging
     if (error instanceof Error) {
-      console.error('Error details:', {
+      logger.error({
         message: error.message,
         stack: error.stack,
         name: error.name
-      });
+      }, 'Error details');
     }
 
     const message = error instanceof Error ? error.message : 'Download failed';
@@ -125,7 +132,7 @@ router.get('/:id/info', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Info error:', error);
+    logger.error({ err: error }, 'Info error');
     const message = error instanceof Error ? error.message : 'Failed to get file info';
     res.status(500).json({ error: message });
   }

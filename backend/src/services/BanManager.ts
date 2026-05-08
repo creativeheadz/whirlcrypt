@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { DatabaseConnection } from '../database/connection';
 import { AttackInfo } from '../middleware/attackDetection';
+import logger from '../utils/logger';
 
 export interface BanEntry {
   id: string;
@@ -16,34 +17,22 @@ export interface BanEntry {
   isActive: boolean;
 }
 
-export interface WallOfShameEntry {
-  ip: string;
-  maskedIP: string; // For privacy: 123.45.67.xxx
-  country?: string;
-  countryFlag?: string;
-  banType: 'permanent' | 'temporary';
-  reason: string;
-  category: string;
-  offendingRequest: string;
-  userAgent: string;
-  bannedAt: Date;
-  expiresAt?: Date;
-  timeLeft?: string; // For temporary bans
-  sarcasticComment: string;
-}
-
 export class BanManager {
   private pool: Pool;
 
   // Whitelist for IPs that should never be banned
-  private readonly WHITELIST_IPS = [
+  // Loopback + private networks are always whitelisted.
+  // Add extra IPs via WHITELISTED_IPS env var (comma-separated).
+  private readonly WHITELIST_IPS: string[] = [
     '127.0.0.1',
     '::1',
-    '192.168.1.100', // Your server IP
-    '81.150.150.132', // User's IP - whitelisted
-    '10.0.0.0/8',    // Private networks
-    '172.16.0.0/12', // Private networks
-    '192.168.0.0/16' // Private networks
+    '10.0.0.0/8',
+    '172.16.0.0/12',
+    '192.168.0.0/16',
+    ...(process.env.WHITELISTED_IPS || '')
+      .split(',')
+      .map(ip => ip.trim())
+      .filter(Boolean)
   ];
 
   constructor() {
@@ -84,7 +73,7 @@ export class BanManager {
       const result = await this.pool.query(query, [ip]);
       return result.rows.length > 0;
     } catch (error) {
-      console.error('Error checking ban status:', error);
+      logger.error({ err: error }, 'Error checking ban status');
       return false;
     }
   }
@@ -95,7 +84,7 @@ export class BanManager {
   async permanentBan(ip: string, attackInfo: AttackInfo): Promise<void> {
     // Never ban whitelisted IPs
     if (this.isIPWhitelisted(ip)) {
-      console.log(`🛡️ Skipping ban for whitelisted IP: ${ip}`);
+      logger.info(`Skipping ban for whitelisted IP: ${ip}`);
       return;
     }
     const query = `
@@ -129,9 +118,9 @@ export class BanManager {
 
     try {
       await this.pool.query(query, values);
-      console.log(`🔨 PERMANENT BAN: ${ip} for ${attackInfo.category} (${attackInfo.path})`);
+      logger.info(`PERMANENT BAN: ${ip} for ${attackInfo.category} (${attackInfo.path})`);
     } catch (error) {
-      console.error('Error applying permanent ban:', error);
+      logger.error({ err: error }, 'Error applying permanent ban');
     }
   }
 
@@ -141,7 +130,7 @@ export class BanManager {
   async temporaryBan(ip: string, attackInfo: AttackInfo, durationMinutes: number): Promise<void> {
     // Never ban whitelisted IPs
     if (this.isIPWhitelisted(ip)) {
-      console.log(`🛡️ Skipping temporary ban for whitelisted IP: ${ip}`);
+      logger.info(`Skipping temporary ban for whitelisted IP: ${ip}`);
       return;
     }
     const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
@@ -184,170 +173,10 @@ export class BanManager {
 
     try {
       await this.pool.query(query, values);
-      console.log(`⏰ TEMPORARY BAN: ${ip} for ${durationMinutes} minutes (${attackInfo.path})`);
+      logger.info(`TEMPORARY BAN: ${ip} for ${durationMinutes} minutes (${attackInfo.path})`);
     } catch (error) {
-      console.error('Error applying temporary ban:', error);
+      logger.error({ err: error }, 'Error applying temporary ban');
     }
-  }
-
-  /**
-   * Get Wall of Shame entries for public display
-   */
-  async getWallOfShame(): Promise<{
-    permanentBans: WallOfShameEntry[];
-    temporaryBans: WallOfShameEntry[];
-  }> {
-    try {
-      // Get permanent bans
-      const permanentQuery = `
-        SELECT * FROM banned_ips
-        WHERE ban_type = 'permanent' AND is_active = true
-        ORDER BY banned_at DESC
-        LIMIT 50
-      `;
-
-      // Get active temporary bans
-      const temporaryQuery = `
-        SELECT * FROM banned_ips
-        WHERE ban_type = 'temporary' 
-        AND is_active = true 
-        AND expires_at > NOW()
-        ORDER BY expires_at ASC
-        LIMIT 20
-      `;
-
-      const [permanentResult, temporaryResult] = await Promise.all([
-        this.pool.query(permanentQuery),
-        this.pool.query(temporaryQuery)
-      ]);
-
-      const permanentBans = permanentResult.rows.map(row => this.formatWallOfShameEntry(row));
-      const temporaryBans = temporaryResult.rows.map(row => this.formatWallOfShameEntry(row));
-
-      return { permanentBans, temporaryBans };
-    } catch (error) {
-      console.error('Error getting Wall of Shame entries:', error);
-      return { permanentBans: [], temporaryBans: [] };
-    }
-  }
-
-  /**
-   * Format database row for Wall of Shame display
-   */
-  private formatWallOfShameEntry(row: any): WallOfShameEntry {
-    const maskedIP = this.maskIP(row.ip);
-    const timeLeft = row.expires_at ? this.getTimeLeft(row.expires_at) : undefined;
-    const sarcasticComment = this.getSarcasticComment(row.category);
-
-    return {
-      ip: row.ip,
-      maskedIP,
-      country: row.country,
-      countryFlag: this.getCountryFlag(row.country),
-      banType: row.ban_type,
-      reason: row.reason,
-      category: row.category,
-      offendingRequest: row.offending_request,
-      userAgent: row.user_agent,
-      bannedAt: row.banned_at,
-      expiresAt: row.expires_at,
-      timeLeft,
-      sarcasticComment
-    };
-  }
-
-  /**
-   * Mask IP address for privacy (show first 3 octets)
-   */
-  private maskIP(ip: string): string {
-    const parts = ip.split('.');
-    if (parts.length === 4) {
-      return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
-    }
-    return ip; // Return as-is if not IPv4
-  }
-
-  /**
-   * Get time left for temporary bans
-   */
-  private getTimeLeft(expiresAt: Date): string {
-    const now = new Date();
-    const timeLeft = expiresAt.getTime() - now.getTime();
-    
-    if (timeLeft <= 0) return 'Expired';
-    
-    const minutes = Math.floor(timeLeft / (1000 * 60));
-    const hours = Math.floor(minutes / 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
-    } else {
-      return `${minutes}m`;
-    }
-  }
-
-  /**
-   * Get country flag emoji
-   */
-  private getCountryFlag(country: string | null): string {
-    if (!country) return '🏴‍☠️'; // Pirate flag for unknown
-    
-    // Map country names to flag emojis (simplified)
-    const flagMap: { [key: string]: string } = {
-      'Russia': '🇷🇺',
-      'China': '🇨🇳',
-      'United States': '🇺🇸',
-      'Germany': '🇩🇪',
-      'France': '🇫🇷',
-      'United Kingdom': '🇬🇧',
-      'Netherlands': '🇳🇱',
-      'Brazil': '🇧🇷',
-      'India': '🇮🇳',
-      'Japan': '🇯🇵'
-    };
-    
-    return flagMap[country] || '🌍';
-  }
-
-  /**
-   * Get sarcastic comment based on attack category
-   */
-  private getSarcasticComment(category: string): string {
-    const comments: { [key: string]: string[] } = {
-      wordpress: [
-        "Still looking for WordPress? Try WordPress.com! 😂",
-        "This isn't your grandma's blog, script kiddie!",
-        "wp-admin? More like wp-BANNED! 🔨"
-      ],
-      admin: [
-        "Admin panel? The only admin here is the ban hammer! ⚡",
-        "PHPMyAdmin? More like PHPMyBAN! 🚫",
-        "Nice try, but this isn't 2005! 🕰️"
-      ],
-      env: [
-        "Looking for secrets? Here's one: you're banned! 🤫",
-        "The only .env you'll find is .env-BANNED! 📁",
-        "Secrets are for friends, not script kiddies! 👥"
-      ],
-      scanner: [
-        "Automated tools? How original! 🤖",
-        "Beep boop, you're banned! 🚫",
-        "Nice scanner, shame about the ban! 🔍"
-      ],
-      exploit: [
-        "Shell access? The only shell you'll get is banned! 🐚",
-        "System commands? System says NO! ❌",
-        "Exploit attempt? More like exploit FAILED! 💥"
-      ],
-      random404: [
-        "404: Your access privileges not found! 🔍",
-        "Random guessing? Random banning! 🎲",
-        "Keep trying, we have all day to ban you! ⏰"
-      ]
-    };
-
-    const categoryComments = comments[category] || comments.random404;
-    return categoryComments[Math.floor(Math.random() * categoryComments.length)];
   }
 
   /**
@@ -367,12 +196,12 @@ export class BanManager {
       const cleanedCount = result.rowCount || 0;
       
       if (cleanedCount > 0) {
-        console.log(`🧹 Cleaned up ${cleanedCount} expired bans`);
+        logger.info(`Cleaned up ${cleanedCount} expired bans`);
       }
       
       return cleanedCount;
     } catch (error) {
-      console.error('Error cleaning up expired bans:', error);
+      logger.error({ err: error }, 'Error cleaning up expired bans');
       return 0;
     }
   }
@@ -392,12 +221,12 @@ export class BanManager {
       const unbanned = (result.rowCount || 0) > 0;
       
       if (unbanned) {
-        console.log(`🔓 Manually unbanned IP: ${ip}`);
+        logger.info(`Manually unbanned IP: ${ip}`);
       }
       
       return unbanned;
     } catch (error) {
-      console.error('Error unbanning IP:', error);
+      logger.error({ err: error }, 'Error unbanning IP');
       return false;
     }
   }

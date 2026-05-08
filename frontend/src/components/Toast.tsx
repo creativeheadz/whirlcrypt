@@ -69,6 +69,8 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
 
   return (
     <div
+      role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+      aria-live={toast.type === 'error' || toast.type === 'warning' ? 'assertive' : 'polite'}
       className={`
         transform transition-all duration-300 ease-in-out mb-2
         ${isVisible && !isLeaving ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
@@ -76,7 +78,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
     >
       <div className={`rounded-lg p-4 ${getStyles()}`}>
         <div className="flex items-start">
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0" aria-hidden="true">
             {getIcon()}
           </div>
           <div className="ml-3 flex-1">
@@ -84,7 +86,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
               {toast.title}
             </h3>
             {toast.message && (
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-gray-700">
                 {toast.message}
               </p>
             )}
@@ -92,7 +94,8 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
           <div className="ml-4 flex-shrink-0">
             <button
               onClick={handleClose}
-              className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600 transition-colors"
+              aria-label="Dismiss notification"
+              className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:text-gray-600 transition-colors rounded"
             >
               <X className="h-4 w-4" />
             </button>
