@@ -5,11 +5,16 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/favicon.png" />
-    <meta name="theme-color" content="#ff7a00" />
+    <meta name="theme-color" content="#c8441c" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Whirlcrypt - Secure file sharing with end-to-end RFC 8188 encryption. Share files safely with automatic expiration." />
     <meta name="keywords" content="whirlcrypt, secure file sharing, encryption, RFC 8188, privacy, file transfer, end-to-end encryption" />
     <meta name="author" content="Whirlcrypt" />
+
+    <!-- Old Forge family typography: Fraunces (display) + JetBrains Mono (UI) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&family=JetBrains+Mono:wght@400;500;600&display=swap" />
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
@@ -26,13 +31,24 @@
     <meta property="twitter:image" content="/favicon.png" />
     
     <!-- Security headers (X-Frame-Options handled by nginx) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; img-src 'self' data: blob:;" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     
     
     <title>Whirlcrypt - Encrypted File Sharing</title>
+
+    <!-- Apply theme class synchronously to avoid flash of wrong theme on load -->
+    <script>
+      (function () {
+        try {
+          var k = localStorage.getItem('whirlcryptTheme');
+          var night = k === 'night' || (!k && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (night) document.documentElement.classList.add('theme-night');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

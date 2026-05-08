@@ -2,169 +2,410 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html {
-    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  }
-  
-  * {
-    @apply border-gray-200/50;
-  }
-  
-  body {
-    @apply bg-gray-50 text-gray-900;
-  }
+/* ============================================================
+   DESIGN TOKENS — Old Forge family (Mantrinol / Skald)
+   ink / paper / ember palette, sharp corners, 1px lines.
+   :root is day; body.theme-night flips to night.
+   ============================================================ */
+
+:root {
+  /* Day (paper) — chart-paper cream, charcoal ink, ember accent */
+  --paper:        #ebe6d8;
+  --paper-faint:  #f3eee0;
+  --paper-deep:   #ddd5c2;
+  --ink:          #14110d;
+  --ink-soft:     #3a3530;
+  --ink-faint:    #6b665b;
+  --ink-veil:     rgba(20, 17, 13, 0.55);
+
+  --ember:        #c8441c;
+  --ember-soft:   #a8391a;
+  --ember-glow:   rgba(200, 68, 28, 0.18);
+
+  /* status — desaturated, still readable in both themes */
+  --green:        #4a8c4a;
+  --amber:        #c89236;
+  --red:          #b04030;
+  --blue:         #4a6c8c;
+
+  --rule:         rgba(20, 17, 13, 0.18);
+  --rule-strong:  rgba(20, 17, 13, 0.45);
+  --rule-faint:   rgba(20, 17, 13, 0.08);
+
+  --font-display: 'Fraunces', 'Times New Roman', Georgia, serif;
+  --font-mono:    'JetBrains Mono', 'Consolas', 'Menlo', monospace;
+
+  /* spacing scale (4px) */
+  --gap-1: 4px;  --gap-2: 8px;  --gap-3: 12px; --gap-4: 16px;
+  --gap-5: 20px; --gap-6: 24px; --gap-8: 32px; --gap-10: 40px;
+  --gap-12: 48px;
+
+  --grid: 48px;
 }
 
+.theme-night {
+  /* Night (ink) — same token names, flipped semantics */
+  --paper:        #14110d;
+  --paper-faint:  #1c1814;
+  --paper-deep:   #0c0a08;
+  --ink:          #ebe6d8;
+  --ink-soft:     #b5ad9d;
+  --ink-faint:    #8a8276;
+  --ink-veil:     rgba(235, 230, 216, 0.55);
+
+  --ember:        #d4612a;
+  --ember-soft:   #b85023;
+  --ember-glow:   rgba(212, 97, 42, 0.28);
+
+  --green:        #6dab6d;
+  --amber:        #d8a350;
+  --red:          #c8584a;
+  --blue:         #6889ab;
+
+  --rule:         rgba(235, 230, 216, 0.15);
+  --rule-strong:  rgba(235, 230, 216, 0.40);
+  --rule-faint:   rgba(235, 230, 216, 0.06);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+@layer base {
+  html, body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* faint 48px instrument grid + radial vignette — fixed backdrop */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right,  var(--rule-faint) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--rule-faint) 1px, transparent 1px);
+    background-size: var(--grid) var(--grid);
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center,
+      transparent 0%,
+      transparent 35%,
+      var(--paper) 100%);
+    z-index: 0;
+  }
+
+  /* Display headings — Fraunces italic */
+  h1, h2, h3, .display {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  h1 { font-size: clamp(2rem, 4vw, 3rem); }
+  h2 { font-size: clamp(1.5rem, 2.5vw, 2rem); }
+  h3 { font-size: 1.25rem; }
+
+  /* Mono small caps for kickers / metadata */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* selection */
+  ::selection {
+    background: var(--ember);
+    color: var(--paper);
+  }
+
+  /* horizontal rule = ember capsule */
+  hr {
+    border: 0;
+    height: 1px;
+    background: var(--rule);
+    margin: var(--gap-6) 0;
+  }
+
+  /* anchors */
+  a {
+    color: var(--ember);
+    text-decoration: none;
+    border-bottom: 1px solid var(--ember-glow);
+    transition: border-color 120ms ease;
+  }
+  a:hover { border-bottom-color: var(--ember); }
+
+  /* form basics — letterpress, no rounded corners */
+  input, select, textarea, button {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  *, *::before, *::after { border-radius: 0 !important; }
+}
+
+/* ============================================================
+   COMPONENTS — letterpress instrument vocabulary
+   ============================================================ */
 @layer components {
-  .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 backdrop-blur-sm;
+  /* ---------- Plates (replace the old "card") ---------- */
+  .plate {
+    background: var(--paper-faint);
+    border: 1px solid var(--rule);
+    padding: var(--gap-6);
+    position: relative;
   }
-  
-  .btn-primary {
-    @apply btn bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 focus:ring-orange-500 shadow-lg border border-orange-400/30;
+  .plate-deep {
+    background: var(--paper-deep);
+    border: 1px solid var(--rule);
+    padding: var(--gap-6);
   }
-  
-  .btn-secondary {
-    @apply btn bg-white/50 text-gray-700 hover:bg-white/70 focus:ring-orange-300 border border-gray-300/50 backdrop-blur-sm;
+  .plate-flush {
+    background: transparent;
+    border: 1px solid var(--rule);
+    padding: var(--gap-6);
   }
-  
-  .btn-danger {
-    @apply btn bg-red-500/90 text-white hover:bg-red-600/90 focus:ring-red-400 border border-red-400/30;
-  }
-  
-  .input {
-    @apply block w-full px-3 py-2 border border-gray-300/50 rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-orange-500 focus:border-orange-500 bg-white/50 backdrop-blur-sm text-gray-900;
-  }
-  
+
+  /* legacy alias — old code uses .card; map to .plate so the
+     reskin can be done page-by-page without losing function */
   .card {
-    @apply bg-white/50 backdrop-blur-xl shadow-2xl border border-gray-200/50 rounded-2xl;
-  }
-  
-  .upload-zone {
-    @apply border-2 border-dashed border-gray-300/70 rounded-xl p-8 text-center transition-all duration-300 cursor-pointer hover:border-orange-400/70 hover:bg-orange-500/5;
-  }
-  
-  .upload-zone.dragover {
-    @apply border-orange-400 bg-orange-500/10 backdrop-blur-sm;
+    background: var(--paper-faint);
+    border: 1px solid var(--rule);
+    padding: var(--gap-6);
+    position: relative;
   }
 
-  /* Glassmorphism Security Dashboard Styles */
-  .glass-card {
-    @apply bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow:
-      0 8px 32px 0 rgba(31, 38, 135, 0.37),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
-      inset 0 -1px 0 0 rgba(255, 255, 255, 0.05);
+  /* ---------- Folio number markers (§ 01, № II, etc.) ---------- */
+  .folio {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .folio-num {
+    font-family: var(--font-display);
+    font-style: italic;
+    color: var(--ember);
   }
 
-  .glass-card:hover {
-    @apply border-white/30;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08));
-    box-shadow:
-      0 12px 40px 0 rgba(31, 38, 135, 0.45),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
-      inset 0 -1px 0 0 rgba(255, 255, 255, 0.08);
+  /* ---------- Buttons — ink / ember pills, sharp corners ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-2);
+    padding: 9px 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 120ms ease;
+    line-height: 1;
   }
+  .btn:hover { background: var(--ink); color: var(--paper); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; background: transparent; color: var(--ink-faint); }
+  .btn:disabled:hover { background: transparent; color: var(--ink-faint); }
 
-  /* Large geometric shapes */
-  .large-circle {
+  .btn-primary {
+    background: var(--ember);
+    color: var(--paper);
+    border-color: var(--ember);
+  }
+  .btn-primary:hover {
+    background: var(--ember-soft);
+    border-color: var(--ember-soft);
+    color: var(--paper);
+  }
+  .btn-primary:disabled { background: var(--ember); border-color: var(--ember); opacity: 0.4; }
+
+  .btn-secondary {
+    border-color: var(--rule-strong);
+    color: var(--ink);
+  }
+  .btn-secondary:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .btn-danger {
+    background: var(--red);
+    color: var(--paper);
+    border-color: var(--red);
+  }
+  .btn-danger:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+  .btn-ghost {
+    border-color: transparent;
+    color: var(--ink-faint);
+  }
+  .btn-ghost:hover { background: transparent; color: var(--ember); border-color: transparent; }
+
+  .btn-sm { padding: 6px 11px; font-size: 10px; letter-spacing: 0.15em; }
+
+  /* ---------- Inputs ---------- */
+  .input {
+    display: block;
     width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: linear-gradient(135deg,
-      rgba(51, 51, 51, 0.6) 0%,
-      rgba(102, 102, 102, 0.4) 50%,
-      rgba(153, 153, 153, 0.6) 100%);
-    mix-blend-mode: multiply;
+    padding: 9px 12px;
+    background: var(--paper);
+    border: 1px solid var(--rule-strong);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    transition: border-color 120ms ease;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--ember);
+    box-shadow: 0 0 0 1px var(--ember);
+  }
+  .input::placeholder { color: var(--ink-faint); }
+  .input[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  /* ---------- Drop tray (replaces upload-zone) ---------- */
+  .tray {
+    position: relative;
+    border: 1px dashed var(--rule-strong);
+    background: var(--paper);
+    padding: var(--gap-12) var(--gap-6);
+    text-align: center;
+    transition: border-color 120ms ease, background 120ms ease;
+    cursor: pointer;
+  }
+  .tray:hover:not(.tray-locked) {
+    border-color: var(--ember);
+    background: var(--ember-glow);
+  }
+  .tray.tray-active {
+    border-color: var(--ember);
+    border-style: solid;
+    background: var(--ember-glow);
+  }
+  .tray-locked { cursor: default; border-style: solid; border-color: var(--rule); }
+
+  /* crosshair corner ornaments on the tray when active */
+  .tray.tray-active::before,
+  .tray.tray-active::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: var(--ember);
+    border-style: solid;
+  }
+  .tray.tray-active::before {
+    top: -1px; left: -1px;
+    border-width: 1px 0 0 1px;
+  }
+  .tray.tray-active::after {
+    bottom: -1px; right: -1px;
+    border-width: 0 1px 1px 0;
   }
 
-  .large-square {
+  /* ---------- Status strips (LED-style, used by Toasts and inline alerts) ---------- */
+  .strip {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gap-3);
+    padding: var(--gap-3) var(--gap-4);
+    background: var(--paper-faint);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--ink-faint);
+  }
+  .strip-success { border-left-color: var(--green); }
+  .strip-error   { border-left-color: var(--red); }
+  .strip-warn    { border-left-color: var(--amber); }
+  .strip-info    { border-left-color: var(--blue); }
+  .strip-ember   { border-left-color: var(--ember); background: var(--ember-glow); }
+
+  /* ---------- LED dot (status pip) ---------- */
+  .led {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--ink-faint);
+    flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .led.led-on    { background: var(--green); color: var(--green); }
+  .led.led-warn  { background: var(--amber); color: var(--amber); }
+  .led.led-error { background: var(--red);   color: var(--red); }
+  .led.led-ember { background: var(--ember); color: var(--ember); }
+
+  /* ---------- Progress (instrument readout) ---------- */
+  .gauge {
     width: 100%;
+    height: 4px;
+    background: var(--rule-faint);
+    overflow: hidden;
+    position: relative;
+  }
+  .gauge-fill {
     height: 100%;
-    background: linear-gradient(45deg,
-      rgba(102, 102, 102, 0.4) 0%,
-      rgba(153, 153, 153, 0.6) 50%,
-      rgba(51, 51, 51, 0.4) 100%);
-    mix-blend-mode: multiply;
-    transform: rotate(15deg);
+    background: var(--ember);
+    transition: width 200ms ease;
+    box-shadow: 0 0 8px var(--ember-glow);
   }
 
-  .large-hexagon {
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(60deg,
-      rgba(153, 153, 153, 0.5) 0%,
-      rgba(51, 51, 51, 0.6) 50%,
-      rgba(102, 102, 102, 0.5) 100%);
-    mix-blend-mode: multiply;
-    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  /* ---------- Tabular telemetry ---------- */
+  .telem {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--gap-2) var(--gap-4);
+    font-family: var(--font-mono);
+    font-size: 12px;
   }
+  .telem dt { color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.1em; }
+  .telem dd { color: var(--ink); margin: 0; }
 
-  /* Slow rotation animations */
-  @keyframes rotate-slow {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+  /* ---------- Chip / tag ---------- */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gap-1);
+    padding: 3px 8px;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-faint);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
+  .chip-ember { border-color: var(--ember); color: var(--ember); }
 
-  @keyframes rotate-reverse {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(-360deg); }
+  /* ---------- App scaffolding helpers ---------- */
+  .stage {
+    position: relative;
+    z-index: 1;
   }
-
-  @keyframes rotate-slow-offset {
-    from { transform: rotate(45deg); }
-    to { transform: rotate(405deg); }
+  .rule {
+    height: 1px;
+    background: var(--rule);
+    border: 0;
   }
-
-  .animate-rotate-slow {
-    animation: rotate-slow 180s linear infinite;
-  }
-
-  .animate-rotate-reverse {
-    animation: rotate-reverse 240s linear infinite;
-  }
-
-  .animate-rotate-slow-offset {
-    animation: rotate-slow-offset 200s linear infinite;
-  }
-
-  /* Upload state - slightly faster rotation */
-  .upload-active .animate-rotate-slow {
-    animation-duration: 120s;
-  }
-
-  .upload-active .animate-rotate-reverse {
-    animation-duration: 160s;
-  }
-
-  .upload-active .animate-rotate-slow-offset {
-    animation-duration: 140s;
-  }
-
-  /* Progress bar glow effect */
-  @keyframes progress-glow {
-    0%, 100% {
-      box-shadow: 0 0 5px rgba(251, 146, 60, 0.3);
-    }
-    50% {
-      box-shadow: 0 0 20px rgba(251, 146, 60, 0.6);
-    }
-  }
-
-  .progress-bar-glow {
-    animation: progress-glow 2s ease-in-out infinite;
-  }
-  
-  /* Glassmorphism utilities */
-  .glass {
-    @apply bg-white/40 backdrop-blur-xl border border-gray-200/50;
-  }
-  
-  .glass-orange {
-    @apply bg-orange-500/10 backdrop-blur-xl border border-orange-400/30;
+  .rule-ember {
+    height: 1px;
+    background: var(--ember);
+    border: 0;
   }
 }

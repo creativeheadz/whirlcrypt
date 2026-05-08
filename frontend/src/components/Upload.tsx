@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload as UploadIcon, FileText, Lock, Clock, Share2, AlertCircle, CheckCircle2, Copy, Folder, FolderOpen } from 'lucide-react'
+import { FileText, Lock, Share2, AlertCircle, CheckCircle2, Copy, Folder, FolderOpen, Clock } from 'lucide-react'
 import { ClientCrypto } from '../crypto/rfc8188'
 import JSZip from 'jszip'
 import axios from 'axios'
@@ -8,7 +8,7 @@ import { useToast } from '../contexts/ToastContext'
 
 interface UploadState {
   file: File | null
-  files: File[] | null // For folder uploads
+  files: File[] | null
   uploading: boolean
   progress: number
   zipProgress: number
@@ -30,231 +30,111 @@ const UploadPage: React.FC = () => {
     shareUrl: null,
     retentionHours: 24,
     isFolder: false,
-    folderName: null
+    folderName: null,
   })
-
   const [copied, setCopied] = useState(false)
-  const { showError, showSuccess, showWarning, showInfo } = useToast()
+  const { showError, showSuccess, showInfo } = useToast()
 
-  // Calculate total size of files
-  const calculateTotalSize = (files: File[]): number => {
-    return files.reduce((total, file) => total + file.size, 0)
-  }
+  const calculateTotalSize = (files: File[]): number =>
+    files.reduce((total, file) => total + file.size, 0)
 
-  // Extract folder name from file paths
   const extractFolderName = (files: File[]): string => {
     if (files.length === 0) return 'folder'
-
-    // Get the common path prefix
-    const paths = files.map(file => file.webkitRelativePath || file.name)
-    const firstPath = paths[0]
-    const parts = firstPath.split('/')
-
-    if (parts.length > 1) {
-      return parts[0] // Return the root folder name
-    }
-
-    return 'selected-files'
+    const paths = files.map(f => f.webkitRelativePath || f.name)
+    const parts = paths[0].split('/')
+    return parts.length > 1 ? parts[0] : 'selected-files'
   }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const totalSize = calculateTotalSize(acceptedFiles)
-
       if (totalSize > 4294967296) {
-        showError(
-          'Files Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
-        )
+        showError('Files too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`)
         return
       }
-
-      // Check if this is a folder upload (files have webkitRelativePath)
-      const isFolder = acceptedFiles.some(file => file.webkitRelativePath)
-
+      const isFolder = acceptedFiles.some(f => f.webkitRelativePath)
       if (isFolder) {
         const folderName = extractFolderName(acceptedFiles)
-        setState(prev => ({
-          ...prev,
-          files: acceptedFiles,
-          file: null,
-          isFolder: true,
-          folderName,
-          error: null,
-          shareUrl: null
-        }))
+        setState(prev => ({ ...prev, files: acceptedFiles, file: null, isFolder: true, folderName, error: null, shareUrl: null }))
       } else {
-        setState(prev => ({
-          ...prev,
-          file: acceptedFiles[0],
-          files: null,
-          isFolder: false,
-          folderName: null,
-          error: null,
-          shareUrl: null
-        }))
+        setState(prev => ({ ...prev, file: acceptedFiles[0], files: null, isFolder: false, folderName: null, error: null, shareUrl: null }))
       }
     }
   }, [])
 
   const { getRootProps, isDragActive } = useDropzone({
     onDrop,
-    multiple: true, // Allow multiple files for folder uploads
-    maxSize: 4294967296, // 4GB per file, but we'll check total size in onDrop
-    disabled: (state.file !== null || state.files !== null) || state.uploading, // Disable dropzone once file/folder is selected or uploading
-    noClick: true, // Disable click to open file dialog - we'll handle this manually
+    multiple: true,
+    maxSize: 4294967296,
+    disabled: state.file !== null || state.files !== null || state.uploading,
+    noClick: true,
     onDropRejected: (rejectedFiles) => {
       const rejection = rejectedFiles[0]?.errors[0]
       let errorMsg = 'Files rejected'
-
-      if (rejection?.code === 'file-too-large') {
-        errorMsg = 'One or more files too large (max 4GB per file)'
-      } else if (rejection?.code === 'too-many-files') {
-        errorMsg = 'Too many files selected'
-      }
-
-      showError('Upload Error', errorMsg)
-    }
+      if (rejection?.code === 'file-too-large') errorMsg = 'One or more files too large (max 4GB per file)'
+      else if (rejection?.code === 'too-many-files') errorMsg = 'Too many files selected'
+      showError('Upload error', errorMsg)
+    },
   })
 
-  // Handle file selection (single/multiple files)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    if (files.length > 0) {
-      const totalSize = calculateTotalSize(files)
-
-      if (totalSize > 4294967296) {
-        showError(
-          'Files Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
-        )
-        return
-      }
-
-      if (files.length === 1) {
-        // Single file
-        setState(prev => ({
-          ...prev,
-          file: files[0],
-          files: null,
-          isFolder: false,
-          folderName: null,
-          error: null,
-          shareUrl: null
-        }))
-      } else {
-        // Multiple files - treat as folder
-        const folderName = 'selected-files'
-        setState(prev => ({
-          ...prev,
-          files,
-          file: null,
-          isFolder: true,
-          folderName,
-          error: null,
-          shareUrl: null
-        }))
-      }
+    if (files.length === 0) return
+    const totalSize = calculateTotalSize(files)
+    if (totalSize > 4294967296) {
+      showError('Files too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`)
+      return
     }
-    // Reset the input
+    if (files.length === 1) {
+      setState(prev => ({ ...prev, file: files[0], files: null, isFolder: false, folderName: null, error: null, shareUrl: null }))
+    } else {
+      setState(prev => ({ ...prev, files, file: null, isFolder: true, folderName: 'selected-files', error: null, shareUrl: null }))
+    }
     e.target.value = ''
   }
 
-  // Handle folder selection
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    if (files.length > 0) {
-      const totalSize = calculateTotalSize(files)
-
-      if (totalSize > 4294967296) {
-        showError(
-          'Folder Too Large',
-          `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`
-        )
-        return
-      }
-
-      const folderName = extractFolderName(files)
-      setState(prev => ({
-        ...prev,
-        files,
-        file: null,
-        isFolder: true,
-        folderName,
-        error: null,
-        shareUrl: null
-      }))
-
-      // Show success notification
-      showSuccess(
-        'Folder Selected!',
-        `${files.length} files selected from "${folderName}"`
-      )
+    if (files.length === 0) return
+    const totalSize = calculateTotalSize(files)
+    if (totalSize > 4294967296) {
+      showError('Folder too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`)
+      return
     }
-    // Reset the input
+    const folderName = extractFolderName(files)
+    setState(prev => ({ ...prev, files, file: null, isFolder: true, folderName, error: null, shareUrl: null }))
+    showSuccess('Folder selected', `${files.length} files from "${folderName}"`)
     e.target.value = ''
   }
 
-  // Show info before folder selection
   const handleFolderButtonClick = () => {
-    showInfo(
-      'Browser Security Notice',
-      'Your browser will ask permission to upload multiple files. Click "Upload" to proceed.',
-      8000 // Show for 8 seconds
-    )
+    showInfo('Browser permission', 'Your browser will ask permission to upload multiple files.', 6000)
   }
 
-  // Create ZIP file from folder
-  const createZipFromFiles = async (files: File[], onProgress?: (progress: number) => void): Promise<File> => {
+  const createZipFromFiles = async (files: File[], onProgress?: (p: number) => void): Promise<File> => {
     const zip = new JSZip()
-
-    // Add files to ZIP maintaining folder structure
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const relativePath = file.webkitRelativePath || file.name
-
-      // Read file content
       const arrayBuffer = await file.arrayBuffer()
       zip.file(relativePath, arrayBuffer)
-
-      if (onProgress) {
-        onProgress((i + 1) / files.length * 100)
-      }
+      onProgress?.((i + 1) / files.length * 100)
     }
-
-    // Generate ZIP file
-    const zipBlob = await zip.generateAsync({
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 }
-    })
-
-    // Create File object from blob
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
     const folderName = state.folderName || 'folder'
     return new File([zipBlob], `${folderName}.zip`, { type: 'application/zip' })
   }
 
   const handleUpload = async () => {
     if (!state.file && !state.files) return
-
     setState(prev => ({ ...prev, uploading: true, progress: 0, zipProgress: 0, error: null }))
-
     try {
       let fileToUpload: File
-
-      // Handle folder upload - create ZIP first
       if (state.files && state.isFolder) {
-        setState(prev => ({ ...prev, progress: 5 })) // 5% for starting ZIP creation
-
-        fileToUpload = await createZipFromFiles(
-          state.files,
-          (zipProgress) => setState(prev => ({
-            ...prev,
-            zipProgress,
-            progress: 5 + (zipProgress * 0.25) // 25% for ZIP creation (5% to 30%)
-          }))
+        setState(prev => ({ ...prev, progress: 5 }))
+        fileToUpload = await createZipFromFiles(state.files, (zipProgress) =>
+          setState(prev => ({ ...prev, zipProgress, progress: 5 + (zipProgress * 0.25) }))
         )
-
         setState(prev => ({ ...prev, progress: 30, zipProgress: 100 }))
       } else if (state.file) {
         fileToUpload = state.file
@@ -263,138 +143,70 @@ const UploadPage: React.FC = () => {
         throw new Error('No file or folder selected')
       }
 
-      // Generate encryption keys
       const { key, salt } = await ClientCrypto.generateKeys()
 
-      // Encrypt file (ZIP or single file) with larger record size for better performance
-      // Use streaming encryption to avoid memory issues with large files
       const encryptedChunks: Uint8Array[] = []
-      for await (const chunk of ClientCrypto.encryptFileStream(
-        fileToUpload,
-        key,
-        salt,
-        65536, // 64KB record size (16x larger for better performance)
-        (progress) => setState(prev => ({
-          ...prev,
-          progress: 30 + (progress * 0.4) // 40% for encryption (30% to 70%)
-        }))
+      for await (const chunk of ClientCrypto.encryptFileStream(fileToUpload, key, salt, 65536, (progress) =>
+        setState(prev => ({ ...prev, progress: 30 + (progress * 0.4) }))
       )) {
         encryptedChunks.push(chunk)
       }
 
-      // Upload to server
       setState(prev => ({ ...prev, progress: 70 }))
 
-      // For files > 2GB, we need to use fetch API instead of FormData/Blob
-      // Create a multipart/form-data request manually using ReadableStream
       const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2)
-      
-      // Build multipart body as a generator
       async function* generateMultipartBody() {
-        // Add retentionHours field
         yield new TextEncoder().encode(
-          `--${boundary}\r\n` +
-          `Content-Disposition: form-data; name="retentionHours"\r\n\r\n` +
-          `${state.retentionHours}\r\n`
+          `--${boundary}\r\nContent-Disposition: form-data; name="retentionHours"\r\n\r\n${state.retentionHours}\r\n`
         )
-        
-        // Add file field header
         yield new TextEncoder().encode(
-          `--${boundary}\r\n` +
-          `Content-Disposition: form-data; name="file"; filename="${fileToUpload.name}"\r\n` +
-          `Content-Type: application/octet-stream\r\n\r\n`
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileToUpload.name}"\r\nContent-Type: application/octet-stream\r\n\r\n`
         )
-        
-        // Add encrypted file data in chunks
-        for (const chunk of encryptedChunks) {
-          yield chunk
-        }
-        
-        // Add closing boundary
+        for (const chunk of encryptedChunks) yield chunk
         yield new TextEncoder().encode(`\r\n--${boundary}--\r\n`)
       }
-
-      // Create ReadableStream from generator
       const stream = new ReadableStream({
         async start(controller) {
-          for await (const chunk of generateMultipartBody()) {
-            controller.enqueue(chunk)
-          }
+          for await (const chunk of generateMultipartBody()) controller.enqueue(chunk)
           controller.close()
-        }
+        },
       })
-
-      // Upload using fetch API
       const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
-        },
-        body: stream
-        // @ts-ignore - duplex is required for streaming but not in TS types yet
-        , duplex: 'half'
+        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+        body: stream,
+        // @ts-ignore — duplex required for streaming, not yet in TS types
+        duplex: 'half',
       } as RequestInit)
-
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed: ${uploadResponse.statusText}`)
-      }
-
+      if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
       const response = await uploadResponse.json()
 
-      // Generate shareable URL with embedded keys and filename
       const shareUrl = ClientCrypto.generateShareUrl(
-        response.id,  // Direct property, not response.data.id
+        response.id,
         key,
         salt,
         window.location.origin,
-        fileToUpload.name // Include original filename in URL fragment
+        fileToUpload.name
       )
 
-      setState(prev => ({
-        ...prev,
-        uploading: false,
-        progress: 100,
-        zipProgress: 0,
-        shareUrl,
-        error: null
-      }))
-
-      // Show success notification
-      showSuccess(
-        state.isFolder ? 'Folder Uploaded!' : 'File Uploaded!',
-        'Your encrypted file is ready to share securely.'
-      )
-
+      setState(prev => ({ ...prev, uploading: false, progress: 100, zipProgress: 0, shareUrl, error: null }))
+      showSuccess(state.isFolder ? 'Folder uploaded' : 'File uploaded', 'Encrypted and ready to share.')
     } catch (error) {
       console.error('Upload error:', error)
       const errorMessage = axios.isAxiosError(error)
         ? error.response?.data?.error || 'Upload failed'
-        : error instanceof Error
-          ? error.message
-          : 'Upload failed'
-
-      setState(prev => ({
-        ...prev,
-        uploading: false,
-        progress: 0,
-        zipProgress: 0,
-        error: errorMessage
-      }))
-
-      // Show error notification
-      showError('Upload Failed', errorMessage)
+        : error instanceof Error ? error.message : 'Upload failed'
+      setState(prev => ({ ...prev, uploading: false, progress: 0, zipProgress: 0, error: errorMessage }))
+      showError('Upload failed', errorMessage)
     }
   }
 
   const handleCopyLink = async () => {
-    if (state.shareUrl) {
-      await navigator.clipboard.writeText(state.shareUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-
-      // Show success notification
-      showSuccess('Link Copied!', 'Share URL copied to clipboard')
-    }
+    if (!state.shareUrl) return
+    await navigator.clipboard.writeText(state.shareUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+    showSuccess('Link copied', 'Share URL on the clipboard.')
   }
 
   const formatFileSize = (bytes: number): string => {
@@ -410,139 +222,96 @@ const UploadPage: React.FC = () => {
     { value: 6, label: '6 hours' },
     { value: 24, label: '24 hours' },
     { value: 72, label: '3 days' },
-    { value: 168, label: '7 days' }
+    { value: 168, label: '7 days' },
   ]
 
+  const hasSelection = !!(state.file || state.files)
+
+  const phaseLabel = state.progress < 30 && state.isFolder
+    ? 'Compressing'
+    : state.progress < 70
+    ? 'Encrypting'
+    : 'Uploading'
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Secure File & Folder Sharing
-        </h1>
-        <p className="text-gray-700 max-w-2xl mx-auto">
-          Share files and folders securely with end-to-end encryption. Files are encrypted in your browser
-          before upload using RFC 8188 standard. Folders are automatically packaged into encrypted ZIP archives.
+    <div className="space-y-10">
+      {/* Masthead */}
+      <header className="space-y-3">
+        <div className="folio">§ 01 · Send</div>
+        <h1 className="display">A private channel, sealed at your end.</h1>
+        <p className="max-w-2xl text-ink-soft" style={{ fontSize: 13, lineHeight: 1.65 }}>
+          Files are sealed in your browser using the RFC 8188 record stream — keys travel only in the
+          URL fragment, never to the server. Folders are bundled to a ZIP first, then encrypted whole.
         </p>
-        <p className="text-sm text-gray-500 max-w-xl mx-auto mt-2">
-          📁 <strong>Folder uploads:</strong> Your browser will ask permission to access multiple files - this is normal security behavior.
-        </p>
-      </div>
+      </header>
 
-      {/* Upload Area */}
-      <div className="card p-6">
+      {/* Drop tray */}
+      <section className="plate">
+        <div className="folio mb-4">§ 02 · The tray</div>
+
         <div
-          {...((state.file || state.files) ? {} : getRootProps())}
-          className={`upload-zone ${isDragActive ? 'dragover' : ''} ${(state.file || state.files) ? 'cursor-default' : ''}`}
+          {...(hasSelection ? {} : getRootProps())}
+          className={`tray ${isDragActive ? 'tray-active' : ''} ${hasSelection ? 'tray-locked' : ''}`}
         >
-
-          {(state.file || state.files) ? (
+          {hasSelection ? (
             state.isFolder && state.files ? (
-              <FolderOpen className="mx-auto h-12 w-12 text-blue-500 mb-4" />
-            ) : (
-              <FileText className="mx-auto h-12 w-12 text-green-500 mb-4" />
-            )
+              <div className="space-y-4">
+                <FolderOpen className="mx-auto h-10 w-10 text-ember" />
+                <div className="space-y-1">
+                  <div className="font-display italic text-lg">{state.folderName}</div>
+                  <div className="folio">
+                    {state.files.length} files · {formatFileSize(calculateTotalSize(state.files))}
+                  </div>
+                </div>
+                {!state.uploading && !state.shareUrl && (
+                  <div className="flex gap-2 justify-center pt-1">
+                    <button onClick={handleUpload} className="btn btn-primary">
+                      <Lock className="h-3.5 w-3.5" /> Encrypt & upload
+                    </button>
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, file: null, files: null, isFolder: false, folderName: null, error: null }))}
+                      className="btn btn-secondary"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : state.file ? (
+              <div className="space-y-4">
+                <FileText className="mx-auto h-10 w-10 text-ember" />
+                <div className="space-y-1">
+                  <div className="font-display italic text-lg">{state.file.name}</div>
+                  <div className="folio">{formatFileSize(state.file.size)}</div>
+                </div>
+                {!state.uploading && !state.shareUrl && (
+                  <div className="flex gap-2 justify-center pt-1">
+                    <button onClick={handleUpload} className="btn btn-primary">
+                      <Lock className="h-3.5 w-3.5" /> Encrypt & upload
+                    </button>
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, file: null, files: null, isFolder: false, folderName: null, error: null }))}
+                      className="btn btn-secondary"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null
           ) : (
-            <UploadIcon className="mx-auto h-12 w-12 text-gray-500 mb-4" />
-          )}
-
-          {state.file ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-center space-x-2 text-sm">
-                <FileText className="h-4 w-4 text-gray-600" />
-                <span className="font-medium text-gray-900">{state.file.name}</span>
-                <span className="text-gray-600">({formatFileSize(state.file.size)})</span>
+            <div className="space-y-5">
+              <div className="font-display italic text-2xl">
+                {isDragActive ? 'Release to seal.' : 'Drop a file or a folder here.'}
               </div>
-
-              <div className="mt-4 flex gap-2 justify-center">
-                {!state.uploading && !state.shareUrl && (
-                  <button
-                    onClick={handleUpload}
-                    className="btn-primary flex items-center"
-                  >
-                    <Lock className="h-4 w-4 mr-2" />
-                    Encrypt & Upload
-                  </button>
-                )}
-                {!state.uploading && !state.shareUrl && (
-                  <button
-                    onClick={() => setState(prev => ({
-                      ...prev,
-                      file: null,
-                      files: null,
-                      isFolder: false,
-                      folderName: null,
-                      error: null
-                    }))}
-                    className="btn-secondary"
-                  >
-                    Remove File
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : state.files && state.isFolder ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-center space-x-2 text-sm">
-                <Folder className="h-4 w-4 text-blue-600" />
-                <span className="font-medium text-gray-900">{state.folderName}</span>
-                <span className="text-gray-600">
-                  ({state.files.length} files, {formatFileSize(calculateTotalSize(state.files))})
-                </span>
-              </div>
-
-              <div className="mt-4 flex gap-2 justify-center">
-                {!state.uploading && !state.shareUrl && (
-                  <button
-                    onClick={handleUpload}
-                    className="btn-primary flex items-center"
-                  >
-                    <Lock className="h-4 w-4 mr-2" />
-                    Create ZIP & Upload
-                  </button>
-                )}
-                {!state.uploading && !state.shareUrl && (
-                  <button
-                    onClick={() => setState(prev => ({
-                      ...prev,
-                      file: null,
-                      files: null,
-                      isFolder: false,
-                      folderName: null,
-                      error: null
-                    }))}
-                    className="btn-secondary"
-                  >
-                    Remove Folder
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p className="text-lg font-medium text-gray-900 mb-2">
-                {isDragActive ? 'Drop files or folders here' : 'Choose files or folders to upload'}
-              </p>
-              <p className="text-gray-700 mb-4">
-                Drag and drop files or folders here, or use the buttons below (max 4GB total)
-              </p>
-              <div className="flex gap-3 justify-center">
-                <label className="btn-primary flex items-center cursor-pointer">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Select Files
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileSelect}
-                  />
+              <div className="folio">or</div>
+              <div className="flex gap-3 justify-center flex-wrap">
+                <label className="btn btn-primary cursor-pointer">
+                  <FileText className="h-3.5 w-3.5" /> Select files
+                  <input type="file" multiple className="hidden" onChange={handleFileSelect} />
                 </label>
-                <label
-                  className="btn-secondary flex items-center cursor-pointer"
-                  onClick={handleFolderButtonClick}
-                >
-                  <Folder className="h-4 w-4 mr-2" />
-                  Select Folder
+                <label className="btn btn-secondary cursor-pointer" onClick={handleFolderButtonClick}>
+                  <Folder className="h-3.5 w-3.5" /> Select folder
                   <input
                     type="file"
                     {...({ webkitdirectory: '' } as any)}
@@ -552,150 +321,117 @@ const UploadPage: React.FC = () => {
                   />
                 </label>
               </div>
+              <div className="folio text-ink-faint">Max 4 GB total</div>
             </div>
           )}
         </div>
 
-        {/* Retention Settings */}
-        {(state.file || state.files) && !state.shareUrl && (
-          <div className="mt-4 pt-4 border-t border-gray-300/50">
-            <label className="block text-sm font-medium text-gray-800 mb-2">
-              <Clock className="h-4 w-4 inline mr-1" />
-              {state.isFolder ? 'Folder' : 'File'} retention period
+        {/* Retention */}
+        {hasSelection && !state.shareUrl && (
+          <div className="mt-6 pt-5 border-t border-rule">
+            <label className="folio block mb-2 flex items-center gap-2">
+              <Clock className="h-3.5 w-3.5" />
+              {state.isFolder ? 'Folder' : 'File'} retention
             </label>
             <select
               value={state.retentionHours}
-              onChange={(e) => setState(prev => ({
-                ...prev,
-                retentionHours: parseInt(e.target.value)
-              }))}
+              onChange={e => setState(prev => ({ ...prev, retentionHours: parseInt(e.target.value) }))}
               className="input max-w-xs"
               disabled={state.uploading}
             >
-              {retentionOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+              {retentionOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
         )}
 
-        {/* Progress Bar */}
+        {/* Progress readout */}
         {state.uploading && (
-          <div className="mt-4 space-y-3">
-            {/* ZIP Creation Progress (for folders) */}
+          <div className="mt-6 space-y-4">
             {state.isFolder && state.zipProgress > 0 && state.zipProgress < 100 && (
               <div>
-                <div className="flex justify-between text-sm text-gray-700 mb-1">
-                  <span>Creating ZIP archive...</span>
+                <div className="flex justify-between folio mb-1">
+                  <span>Compressing folder</span>
                   <span>{Math.round(state.zipProgress)}%</span>
                 </div>
-                <div className="w-full bg-gray-200/70 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${state.zipProgress}%` }}
-                  />
-                </div>
+                <div className="gauge"><div className="gauge-fill" style={{ width: `${state.zipProgress}%` }} /></div>
               </div>
             )}
-
-            {/* Overall Progress */}
             <div>
-              <div className="flex justify-between text-sm text-gray-700 mb-1">
-                <span>
-                  {state.progress < 30 && state.isFolder ? 'Creating ZIP archive...' :
-                   state.progress < 70 ? 'Encrypting...' : 'Uploading...'}
-                </span>
+              <div className="flex justify-between folio mb-1">
+                <span>{phaseLabel}</span>
                 <span>{Math.round(state.progress)}%</span>
               </div>
-              <div className="w-full bg-gray-200/70 rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${state.progress}%` }}
-                />
-              </div>
+              <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
             </div>
           </div>
         )}
 
-        {/* Error Message */}
+        {/* Error strip */}
         {state.error && (
-          <div className="mt-4 p-3 bg-red-100/80 border border-red-300/60 rounded-lg backdrop-blur-sm">
-            <div className="flex items-center">
-              <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
-              <span className="text-red-800 text-sm">{state.error}</span>
-            </div>
+          <div className="strip strip-error mt-6">
+            <AlertCircle className="h-4 w-4 text-led-red flex-shrink-0 mt-0.5" />
+            <div className="text-ink" style={{ fontSize: 13 }}>{state.error}</div>
           </div>
         )}
 
-        {/* Success & Share Link */}
+        {/* Success readout */}
         {state.shareUrl && (
-          <div className="mt-4 p-4 glass-orange rounded-lg">
-            <div className="flex items-center mb-3">
-              <CheckCircle2 className="h-5 w-5 text-orange-600 mr-2" />
-              <span className="text-gray-900 font-medium">
-                {state.isFolder ? 'Folder uploaded successfully!' : 'File uploaded successfully!'}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-800 mb-1">
-                  <Share2 className="h-4 w-4 inline mr-1" />
-                  Share link (includes decryption key)
-                </label>
-                <div className="flex">
-                  <input
-                    type="text"
-                    value={state.shareUrl}
-                    readOnly
-                    className="input flex-1 mr-2 font-mono text-xs"
-                  />
-                  <button
-                    onClick={handleCopyLink}
-                    className={`btn-secondary flex items-center ${copied ? 'bg-green-100/90 text-green-800 border-green-400/60' : ''}`}
-                  >
-                    <Copy className="h-4 w-4 mr-1" />
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
+          <div className="strip strip-ember mt-6 flex-col items-stretch !p-5">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-ember flex-shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-3">
+                <div className="font-display italic text-lg text-ink">
+                  {state.isFolder ? 'Folder sealed.' : 'File sealed.'}
                 </div>
-              </div>
-
-              <div className="text-xs text-gray-700 space-y-1">
-                <p>• Link expires in {state.retentionHours} hour{state.retentionHours !== 1 ? 's' : ''}</p>
-                <p>• Encryption keys are embedded in the URL fragment (not sent to server)</p>
-                <p>• Share this link securely - anyone with it can download the {state.isFolder ? 'folder (as ZIP)' : 'file'}</p>
-                {state.isFolder && (
-                  <p>• Recipients can extract the ZIP to restore the original folder structure</p>
-                )}
+                <div>
+                  <div className="folio mb-1 flex items-center gap-2">
+                    <Share2 className="h-3 w-3" /> Share link (key in fragment, never sent)
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="text" value={state.shareUrl} readOnly className="input flex-1" style={{ fontSize: 11 }} />
+                    <button
+                      onClick={handleCopyLink}
+                      className={`btn ${copied ? 'btn-secondary' : 'btn-secondary'}`}
+                      style={copied ? { color: 'var(--green)', borderColor: 'var(--green)' } : undefined}
+                    >
+                      <Copy className="h-3.5 w-3.5" /> {copied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+                <dl className="telem">
+                  <dt>Expires</dt>
+                  <dd>in {state.retentionHours} hour{state.retentionHours !== 1 ? 's' : ''}</dd>
+                  <dt>Cipher</dt>
+                  <dd>AES-128-GCM · RFC 8188</dd>
+                  <dt>Server sees</dt>
+                  <dd>encrypted bytes only</dd>
+                </dl>
               </div>
             </div>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Security Info */}
-      <div className="card p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-          <Lock className="h-5 w-5 mr-2 text-orange-600" />
-          Security Features
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
-          <div className="space-y-2">
-            <p>• <strong className="text-orange-600">End-to-end encryption:</strong> Files & folders encrypted in browser</p>
-            <p>• <strong className="text-orange-600">RFC 8188 standard:</strong> Industry-standard encryption</p>
-            <p>• <strong className="text-orange-600">Zero server access:</strong> Keys never sent to server</p>
-            <p>• <strong className="text-orange-600">Folder support:</strong> Automatic ZIP creation client-side</p>
-          </div>
-          <div className="space-y-2">
-            <p>• <strong className="text-orange-600">Automatic expiration:</strong> Files auto-delete</p>
-            <p>• <strong className="text-orange-600">No tracking:</strong> No ads or user tracking</p>
-            <p>• <strong className="text-orange-600">Open source:</strong> Transparent security</p>
-            <p>• <strong className="text-orange-600">4GB limit:</strong> Total size limit per upload</p>
-          </div>
+      {/* What it does */}
+      <section className="plate">
+        <div className="folio mb-4">§ 03 · The mechanism</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
+          <dl className="telem">
+            <dt>Encryption</dt>      <dd>RFC 8188 record stream, in-browser</dd>
+            <dt>Cipher</dt>          <dd>AES-128-GCM, 64KB records</dd>
+            <dt>Key custody</dt>     <dd>URL fragment only — never the server</dd>
+            <dt>Folder support</dt>  <dd>Client-side ZIP, then sealed whole</dd>
+          </dl>
+          <dl className="telem">
+            <dt>Expiry</dt>          <dd>Auto-purge after retention window</dd>
+            <dt>Tracking</dt>        <dd>None. No analytics, no ads.</dd>
+            <dt>Source</dt>          <dd>Open, MIT licence</dd>
+            <dt>Limit</dt>           <dd>4 GB per upload</dd>
+          </dl>
         </div>
-      </div>
+      </section>
     </div>
   )
 }

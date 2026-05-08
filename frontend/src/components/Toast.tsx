@@ -16,88 +16,81 @@ interface ToastProps {
   onClose: (id: string) => void
 }
 
+const stripClass: Record<ToastType, string> = {
+  success: 'strip strip-success',
+  error:   'strip strip-error',
+  warning: 'strip strip-warn',
+  info:    'strip strip-info',
+}
+
+const iconColor: Record<ToastType, string> = {
+  success: 'var(--green)',
+  error:   'var(--red)',
+  warning: 'var(--amber)',
+  info:    'var(--blue)',
+}
+
 const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
 
   useEffect(() => {
-    // Trigger entrance animation
     const timer = setTimeout(() => setIsVisible(true), 10)
     return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
     if (toast.duration !== 0) {
-      const timer = setTimeout(() => {
-        handleClose()
-      }, toast.duration || 5000)
+      const timer = setTimeout(() => handleClose(), toast.duration || 5000)
       return () => clearTimeout(timer)
     }
   }, [toast.duration])
 
   const handleClose = () => {
     setIsLeaving(true)
-    setTimeout(() => onClose(toast.id), 300)
+    setTimeout(() => onClose(toast.id), 240)
   }
 
-  const getIcon = () => {
-    switch (toast.type) {
-      case 'success':
-        return <CheckCircle2 className="h-5 w-5 text-green-500" />
-      case 'error':
-        return <AlertCircle className="h-5 w-5 text-red-500" />
-      case 'warning':
-        return <AlertTriangle className="h-5 w-5 text-orange-500" />
-      case 'info':
-        return <Info className="h-5 w-5 text-blue-500" />
-    }
-  }
-
-  const getStyles = () => {
-    const baseStyles = "border-l-4 shadow-lg backdrop-blur-sm"
-    switch (toast.type) {
-      case 'success':
-        return `${baseStyles} bg-green-50/90 border-green-400`
-      case 'error':
-        return `${baseStyles} bg-red-50/90 border-red-400`
-      case 'warning':
-        return `${baseStyles} bg-orange-50/90 border-orange-400`
-      case 'info':
-        return `${baseStyles} bg-blue-50/90 border-blue-400`
-    }
-  }
+  const Icon =
+    toast.type === 'success' ? CheckCircle2 :
+    toast.type === 'error'   ? AlertCircle :
+    toast.type === 'warning' ? AlertTriangle :
+                                Info
 
   return (
     <div
-      className={`
-        transform transition-all duration-300 ease-in-out mb-2
-        ${isVisible && !isLeaving ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
-      `}
+      className="mb-2"
+      style={{
+        transform: isVisible && !isLeaving ? 'translateX(0)' : 'translateX(110%)',
+        opacity: isVisible && !isLeaving ? 1 : 0,
+        transition: 'transform 240ms ease, opacity 240ms ease',
+      }}
     >
-      <div className={`rounded-lg p-4 ${getStyles()}`}>
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            {getIcon()}
+      <div className={stripClass[toast.type]}>
+        <Icon
+          className="h-4 w-4 flex-shrink-0"
+          style={{ marginTop: 2, color: iconColor[toast.type] }}
+        />
+        <div className="flex-1 min-w-0">
+          <div
+            className="font-display italic text-ink"
+            style={{ fontSize: 15, lineHeight: 1.25 }}
+          >
+            {toast.title}
           </div>
-          <div className="ml-3 flex-1">
-            <h3 className="text-sm font-medium text-gray-900">
-              {toast.title}
-            </h3>
-            {toast.message && (
-              <p className="mt-1 text-sm text-gray-600">
-                {toast.message}
-              </p>
-            )}
-          </div>
-          <div className="ml-4 flex-shrink-0">
-            <button
-              onClick={handleClose}
-              className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600 transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          {toast.message && (
+            <div className="text-ink-soft mt-1" style={{ fontSize: 12, lineHeight: 1.5 }}>
+              {toast.message}
+            </div>
+          )}
         </div>
+        <button
+          onClick={handleClose}
+          aria-label="Dismiss"
+          className="text-ink-faint hover:text-ember transition-colors flex-shrink-0"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   )

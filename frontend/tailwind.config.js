@@ -7,46 +7,54 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
+        // Old Forge family — ink/paper/ember tokens, both themes via :root + body.theme-night.
+        // Tailwind defaults (gray, red-500, etc.) are intentionally preserved for legacy classes
+        // during the reskin; new code should prefer ink/paper/ember.
+        paper: {
+          DEFAULT: 'var(--paper)',
+          faint:   'var(--paper-faint)',
+          deep:    'var(--paper-deep)',
         },
-        gray: {
-          50: '#f9fafb',
-          100: '#f3f4f6',
-          200: '#e5e7eb',
-          300: '#d1d5db',
-          400: '#9ca3af',
-          500: '#6b7280',
-          600: '#4b5563',
-          700: '#374151',
-          800: '#1f2937',
-          900: '#111827',
-        }
-      },
-      animation: {
-        'fade-in': 'fadeIn 0.5s ease-in-out',
-        'slide-up': 'slideUp 0.3s ease-out',
-        'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-      },
-      keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+        ink: {
+          DEFAULT: 'var(--ink)',
+          soft:    'var(--ink-soft)',
+          faint:   'var(--ink-faint)',
+          veil:    'var(--ink-veil)',
         },
-        slideUp: {
-          '0%': { transform: 'translateY(10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        }
-      }
+        ember: {
+          DEFAULT: 'var(--ember)',
+          soft:    'var(--ember-soft)',
+          glow:    'var(--ember-glow)',
+        },
+        rule: {
+          DEFAULT: 'var(--rule)',
+          strong:  'var(--rule-strong)',
+          faint:   'var(--rule-faint)',
+        },
+        led: {
+          green: 'var(--green)',
+          amber: 'var(--amber)',
+          red:   'var(--red)',
+          blue:  'var(--blue)',
+        },
+      },
+      fontFamily: {
+        display: ['Fraunces', 'Georgia', 'serif'],
+        mono: ['"JetBrains Mono"', 'Consolas', 'Menlo', 'monospace'],
+        sans: ['"JetBrains Mono"', 'Consolas', 'Menlo', 'monospace'],
+      },
+      // Sharp corners only — kill all rounded utility output
+      borderRadius: {
+        none: '0',
+        sm:   '0',
+        DEFAULT: '0',
+        md:   '0',
+        lg:   '0',
+        xl:   '0',
+        '2xl': '0',
+        '3xl': '0',
+        full: '0',
+      },
     },
   },
   plugins: [],

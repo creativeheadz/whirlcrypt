@@ -1,8 +1,51 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Upload as UploadIcon, Settings, Github, Shield } from 'lucide-react'
-import AnimatedBackground from './AnimatedBackground'
+import { Sun, Moon, Github } from 'lucide-react'
 import Logo from './Logo'
+import { useTheme } from '../hooks/useTheme'
+
+interface NavLinkProps {
+  to: string
+  label: string
+  kicker?: string
+  active: boolean
+}
+
+const NavLink: React.FC<NavLinkProps> = ({ to, label, kicker, active }) => (
+  <Link to={to} className="group relative px-3 py-2 block">
+    {kicker && (
+      <span
+        className={`block text-[9px] mb-0.5 transition-colors ${active ? 'text-ember' : 'text-ink-faint group-hover:text-ember'}`}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          letterSpacing: '0.2em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {kicker}
+      </span>
+    )}
+    <span
+      className={`block transition-colors ${active ? 'text-ember' : 'text-ink group-hover:text-ember'}`}
+      style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        fontWeight: 500,
+      }}
+    >
+      {label}
+    </span>
+    {active && (
+      <span
+        className="absolute left-3 right-3 -bottom-px h-px"
+        style={{ background: 'var(--ember)' }}
+        aria-hidden
+      />
+    )}
+  </Link>
+)
 
 interface LayoutProps {
   children: React.ReactNode
@@ -10,87 +53,90 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
+  const { theme, toggle } = useTheme()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex flex-col relative">
-      {/* Animated background */}
-      <AnimatedBackground isUploading={false} />
-      {/* Header */}
-      <header className="bg-white/30 backdrop-blur-xl border-b border-black/10 shadow-lg relative z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <Link to="/" className="flex items-center">
-              <Logo className="h-12" />
+    <div className="min-h-screen flex flex-col stage">
+      {/* Masthead */}
+      <header className="border-b border-rule">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between py-5 gap-4">
+            <Link to="/" className="block">
+              <Logo />
             </Link>
-
-            <nav className="flex items-center space-x-4">
-              <Link
-                to="/"
-                className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  location.pathname === '/'
-                    ? 'bg-orange-500/20 text-orange-700 backdrop-blur-sm border border-orange-400/30 shadow-lg'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/20 backdrop-blur-sm'
-                }`}
+            <nav className="flex items-center">
+              <NavLink to="/"        label="Upload" kicker="§ I"   active={location.pathname === '/'} />
+              <NavLink to="/admin"   label="Admin"  kicker="§ II"  active={location.pathname === '/admin'} />
+              <NavLink to="/security" label="Wall"  kicker="§ III" active={location.pathname === '/security'} />
+              <span
+                className="mx-2 w-px h-7"
+                style={{ background: 'var(--rule)' }}
+                aria-hidden
+              />
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label={theme === 'night' ? 'Switch to day theme' : 'Switch to night theme'}
+                title={theme === 'night' ? 'Day' : 'Night'}
+                className="p-2 text-ink-faint hover:text-ember transition-colors"
               >
-                <UploadIcon className="h-4 w-4" />
-                <span>Upload</span>
-              </Link>
-              
-              <Link
-                to="/admin"
-                className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  location.pathname === '/admin'
-                    ? 'bg-orange-500/20 text-orange-700 backdrop-blur-sm border border-orange-400/30 shadow-lg'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/20 backdrop-blur-sm'
-                }`}
-              >
-                <Settings className="h-4 w-4" />
-                <span>Admin</span>
-              </Link>
-
+                {theme === 'night' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
               <a
                 href="https://github.com/creativeheadz/whirlcrypt"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-600 hover:text-orange-500 transition-colors duration-200 p-2 rounded-lg hover:bg-white/20"
+                aria-label="Source on GitHub"
+                className="p-2 text-ink-faint hover:text-ember transition-colors"
               >
-                <Github className="h-5 w-5" />
+                <Github className="h-4 w-4" />
               </a>
             </nav>
           </div>
+          {/* ember capsule rule under the masthead */}
+          <div
+            className="h-px"
+            style={{ background: 'var(--ember)', opacity: 0.7 }}
+            aria-hidden
+          />
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-        <div className="bg-white/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 shadow-2xl p-8">
-          {children}
-        </div>
+      {/* Main */}
+      <main className="flex-1 w-full max-w-5xl mx-auto px-6 lg:px-8 py-12">
+        {children}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-200/50 bg-white/30 backdrop-blur-xl relative z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4 text-sm text-gray-700">
-              <span>© {new Date().getFullYear()} Whirlcrypt</span>
-              <span>RFC 8188 Encrypted</span>
-            </div>
-
-            <div className="flex items-center space-x-4 text-xs text-gray-600">
-              <span>End-to-end encrypted file sharing</span>
-              <span>•</span>
-              <span>No server-side decryption</span>
-              <span>•</span>
-              <Link
-                to="/security"
-                className="flex items-center space-x-1 hover:text-purple-600 transition-colors duration-200 font-medium"
-              >
-                <Shield className="w-3 h-3" />
-                <span>Security Dashboard</span>
-              </Link>
-            </div>
+      {/* Colophon */}
+      <footer className="border-t border-rule mt-12">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8 py-6 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <div
+            className="flex items-center gap-3 text-ink-faint"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+            }}
+          >
+            <span>© {new Date().getFullYear()} Whirlcrypt</span>
+            <span aria-hidden>·</span>
+            <span>RFC 8188 record stream</span>
+            <span aria-hidden>·</span>
+            <span>Zero server decryption</span>
           </div>
+          <Link
+            to="/security"
+            className="text-ink-faint hover:text-ember transition-colors"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Forged in the Old Forge
+          </Link>
         </div>
       </footer>
     </div>

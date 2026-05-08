@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, BarChart3, Trash2, RefreshCw, HardDrive, Clock, FileText, AlertTriangle } from 'lucide-react'
+import { Trash2, RefreshCw, HardDrive, Clock, FileText, AlertTriangle, LogOut, Save } from 'lucide-react'
 import axios from 'axios'
 import AdminLogin from './AdminLogin'
-
 
 interface Stats {
   totalFiles: number
@@ -38,17 +37,14 @@ const Admin: React.FC = () => {
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Configuration form state
   const [configForm, setConfigForm] = useState({
     defaultRetentionHours: 24,
     maxRetentionHours: 168,
-    maxFileSize: 4294967296 // 100MB
+    maxFileSize: 4294967296,
   })
-
   const [configSaving, setConfigSaving] = useState(false)
   const [configSaved, setConfigSaved] = useState(false)
 
@@ -69,27 +65,20 @@ const Admin: React.FC = () => {
   const fetchData = async () => {
     setLoading(true)
     setError(null)
-
     try {
       const [statsResponse, configResponse] = await Promise.all([
         axios.get('/api/admin/stats'),
-        axios.get('/api/admin/config')
+        axios.get('/api/admin/config'),
       ])
-
       setStats(statsResponse.data)
       setConfig(configResponse.data)
-
-      // Update form with current config
       setConfigForm({
         defaultRetentionHours: configResponse.data.retention.defaultRetentionHours,
         maxRetentionHours: configResponse.data.retention.maxRetentionHours,
-        maxFileSize: configResponse.data.retention.maxFileSize
+        maxFileSize: configResponse.data.retention.maxFileSize,
       })
-
-    } catch (error) {
-      const errorMessage = axios.isAxiosError(error)
-        ? error.response?.data?.error || 'Failed to load data'
-        : 'Failed to load data'
+    } catch (err) {
+      const errorMessage = axios.isAxiosError(err) ? err.response?.data?.error || 'Failed to load data' : 'Failed to load data'
       setError(errorMessage)
     } finally {
       setLoading(false)
@@ -97,26 +86,18 @@ const Admin: React.FC = () => {
   }
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchData()
-    }
+    if (isAuthenticated) fetchData()
   }, [isAuthenticated])
 
   const handleCleanup = async () => {
     setCleanupLoading(true)
     setCleanupResult(null)
-
     try {
       const response = await axios.post('/api/admin/cleanup')
       setCleanupResult(response.data.message)
-
-      // Refresh stats after cleanup
       await fetchData()
-
-    } catch (error) {
-      const errorMessage = axios.isAxiosError(error)
-        ? error.response?.data?.error || 'Cleanup failed'
-        : 'Cleanup failed'
+    } catch (err) {
+      const errorMessage = axios.isAxiosError(err) ? err.response?.data?.error || 'Cleanup failed' : 'Cleanup failed'
       setError(errorMessage)
     } finally {
       setCleanupLoading(false)
@@ -126,20 +107,13 @@ const Admin: React.FC = () => {
   const handleConfigSave = async () => {
     setConfigSaving(true)
     setConfigSaved(false)
-
     try {
       await axios.put('/api/admin/config', configForm)
       setConfigSaved(true)
-
-      // Refresh config
       await fetchData()
-
       setTimeout(() => setConfigSaved(false), 3000)
-
-    } catch (error) {
-      const errorMessage = axios.isAxiosError(error)
-        ? error.response?.data?.error || 'Failed to save configuration'
-        : 'Failed to save configuration'
+    } catch (err) {
+      const errorMessage = axios.isAxiosError(err) ? err.response?.data?.error || 'Failed to save configuration' : 'Failed to save configuration'
       setError(errorMessage)
     } finally {
       setConfigSaving(false)
@@ -149,8 +123,8 @@ const Admin: React.FC = () => {
   const handleLogout = async () => {
     try {
       await axios.post('/api/admin/auth/logout')
-    } catch (e) {
-      // ignore errors; we'll still clear local state
+    } catch {
+      // ignore
     } finally {
       localStorage.removeItem('adminToken')
       setIsAuthenticated(false)
@@ -167,286 +141,196 @@ const Admin: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
+  const formatSizeInput = (bytes: number): number => Math.round(bytes / (1024 * 1024))
 
-
-  const formatSizeInput = (bytes: number): number => {
-    return Math.round(bytes / (1024 * 1024)) // Convert to MB
-  }
-
-  // Auth gating
   if (!authChecked) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <RefreshCw className="h-6 w-6 animate-spin text-primary-600" />
-        <span className="ml-2 text-gray-600">Checking authentication...</span>
+      <div className="flex items-center justify-center py-12 gap-2 folio">
+        <RefreshCw className="h-4 w-4 animate-spin" /> Checking credentials
       </div>
     )
   }
-
   if (authChecked && !isAuthenticated) {
     return (
-      <AdminLogin onSuccess={async () => {
-        setIsAuthenticated(true)
-        setError(null)
-        await fetchData()
-      }} />
+      <AdminLogin
+        onSuccess={async () => {
+          setIsAuthenticated(true)
+          setError(null)
+          await fetchData()
+        }}
+      />
     )
   }
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <RefreshCw className="h-6 w-6 animate-spin text-primary-600" />
-        <span className="ml-2 text-gray-600">Loading admin panel...</span>
+      <div className="flex items-center justify-center py-12 gap-2 folio">
+        <RefreshCw className="h-4 w-4 animate-spin" /> Loading
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="text-left">
-          <h1 className="text-3xl font-bold text-gray-900 mb-1">Admin Panel</h1>
-          <p className="text-gray-600">Manage file retention settings and view system statistics</p>
+    <div className="space-y-10">
+      {/* Masthead */}
+      <header className="flex items-end justify-between gap-4 flex-wrap">
+        <div className="space-y-2">
+          <div className="folio">§ 02 · Admin</div>
+          <h1 className="display">The keeper's bench.</h1>
+          <p className="text-ink-soft" style={{ fontSize: 13, lineHeight: 1.65 }}>
+            Files in flight, storage on disk, retention rules — all set from here.
+          </p>
         </div>
-        {isAuthenticated && (
-          <button
-            onClick={handleLogout}
-            className="px-3 py-1.5 rounded-md border border-gray-300 bg-white/70 hover:bg-white text-sm text-gray-700 shadow-sm"
-            title="Log out"
-          >
-            Logout
-          </button>
-        )}
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="card p-4 bg-red-50 border-red-200">
-          <div className="flex items-center">
-            <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
-            <span className="text-red-700">{error}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Statistics Cards */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Files</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalFiles}</p>
-              </div>
-              <FileText className="h-8 w-8 text-primary-600" />
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Storage Used</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatFileSize(stats.totalSize)}
-                </p>
-              </div>
-              <HardDrive className="h-8 w-8 text-primary-600" />
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Expired Files</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.expiredFiles}</p>
-              </div>
-              <Clock className="h-8 w-8 text-amber-600" />
-            </div>
-            {stats.expiredFiles > 0 && (
-              <p className="text-sm text-amber-600 mt-2">
-                Files ready for cleanup
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Cleanup Section */}
-      <div className="card p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-          <Trash2 className="h-5 w-5 mr-2" />
-          File Cleanup
-        </h2>
-
-        <p className="text-gray-600 mb-4">
-          Remove expired files to free up storage space. This operation is automatic but can be
-          triggered manually when needed.
-        </p>
-
-        <button
-          onClick={handleCleanup}
-          disabled={cleanupLoading}
-          className="btn-primary flex items-center"
-        >
-          {cleanupLoading ? (
-            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Trash2 className="h-4 w-4 mr-2" />
-          )}
-          {cleanupLoading ? 'Cleaning up...' : 'Run Cleanup Now'}
+        <button onClick={handleLogout} className="btn btn-ghost">
+          <LogOut className="h-3.5 w-3.5" /> Sign out
         </button>
+      </header>
 
-        {cleanupResult && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
-            <p className="text-green-700">{cleanupResult}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Configuration Section */}
-      {config && (
-        <div className="card p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <Settings className="h-5 w-5 mr-2" />
-            Configuration
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Retention Settings */}
-            <div>
-              <h3 className="text-lg font-medium text-gray-800 mb-3">
-                File Retention
-              </h3>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Default Retention (hours)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={configForm.maxRetentionHours}
-                    value={configForm.defaultRetentionHours}
-                    onChange={(e) => setConfigForm(prev => ({
-                      ...prev,
-                      defaultRetentionHours: parseInt(e.target.value) || 1
-                    }))}
-                    className="input"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Maximum Retention (hours)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={configForm.maxRetentionHours}
-                    onChange={(e) => setConfigForm(prev => ({
-                      ...prev,
-                      maxRetentionHours: parseInt(e.target.value) || 1
-                    }))}
-                    className="input"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Maximum File Size (MB)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formatSizeInput(configForm.maxFileSize)}
-                    onChange={(e) => setConfigForm(prev => ({
-                      ...prev,
-                      maxFileSize: (parseInt(e.target.value) || 1) * 1024 * 1024
-                    }))}
-                    className="input"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Current Settings Display */}
-            <div>
-              <h3 className="text-lg font-medium text-gray-800 mb-3">
-                Current Settings
-              </h3>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Cleanup Interval:</span>
-                  <span className="font-medium">{config.retention.cleanupIntervalMinutes} minutes</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Rate Limit Window:</span>
-                  <span className="font-medium">{config.rateLimiting.windowMs / 60000} minutes</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Rate Limit Max:</span>
-                  <span className="font-medium">{config.rateLimiting.maxRequests} requests</span>
-                </div>
-
-                {config.retention.allowedExtensions && (
-                  <div>
-                    <span className="text-gray-600">Allowed Extensions:</span>
-                    <div className="mt-1">
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {config.retention.allowedExtensions.join(', ') || 'All types'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Save Button */}
-          <div className="mt-6 pt-4 border-t">
-            <button
-              onClick={handleConfigSave}
-              disabled={configSaving}
-              className="btn-primary flex items-center"
-            >
-              {configSaving ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Settings className="h-4 w-4 mr-2" />
-              )}
-              {configSaving ? 'Saving...' : 'Save Configuration'}
-            </button>
-
-            {configSaved && (
-              <p className="text-green-600 text-sm mt-2">
-                Configuration saved successfully!
-              </p>
-            )}
-          </div>
+      {error && (
+        <div className="strip strip-error">
+          <AlertTriangle className="h-4 w-4 text-led-red flex-shrink-0 mt-0.5" />
+          <span className="text-ink" style={{ fontSize: 13 }}>{error}</span>
         </div>
       )}
 
-      {/* System Info */}
-      <div className="card p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-          <BarChart3 className="h-5 w-5 mr-2 text-primary-600" />
-          System Information
-        </h3>
-        <div className="text-sm text-gray-600 space-y-1">
-          <p>• Files are automatically cleaned up based on retention settings</p>
-          <p>• All uploads are rate-limited to prevent abuse</p>
-          <p>• Server never has access to decryption keys</p>
-          <p>• Configuration changes take effect immediately</p>
+      {/* Telemetry plates */}
+      {stats && (
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatPlate icon={<FileText className="h-4 w-4" />} label="Files in flight" value={String(stats.totalFiles)} />
+          <StatPlate icon={<HardDrive className="h-4 w-4" />} label="Storage used"   value={formatFileSize(stats.totalSize)} />
+          <StatPlate
+            icon={<Clock className="h-4 w-4" />}
+            label="Expired"
+            value={String(stats.expiredFiles)}
+            tone={stats.expiredFiles > 0 ? 'amber' : 'default'}
+            sub={stats.expiredFiles > 0 ? 'ready to sweep' : undefined}
+          />
+        </section>
+      )}
+
+      {/* Cleanup */}
+      <section className="plate">
+        <div className="folio mb-3 flex items-center gap-2">
+          <Trash2 className="h-3.5 w-3.5" /> Sweep
         </div>
-      </div>
+        <p className="text-ink-soft mb-4" style={{ fontSize: 13, lineHeight: 1.6 }}>
+          Cleanup runs automatically. This button forces it now — useful after a retention change.
+        </p>
+        <button onClick={handleCleanup} disabled={cleanupLoading} className="btn btn-primary">
+          {cleanupLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          {cleanupLoading ? 'Sweeping…' : 'Run sweep now'}
+        </button>
+        {cleanupResult && (
+          <div className="strip strip-success mt-4">
+            <span className="text-ink" style={{ fontSize: 13 }}>{cleanupResult}</span>
+          </div>
+        )}
+      </section>
+
+      {/* Config */}
+      {config && (
+        <section className="plate">
+          <div className="folio mb-4">§ 02.a · Retention dials</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+            <div className="space-y-4">
+              <div>
+                <label className="folio block mb-1.5">Default retention (hours)</label>
+                <input
+                  type="number" min={1} max={configForm.maxRetentionHours}
+                  value={configForm.defaultRetentionHours}
+                  onChange={e => setConfigForm(p => ({ ...p, defaultRetentionHours: parseInt(e.target.value) || 1 }))}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="folio block mb-1.5">Maximum retention (hours)</label>
+                <input
+                  type="number" min={1}
+                  value={configForm.maxRetentionHours}
+                  onChange={e => setConfigForm(p => ({ ...p, maxRetentionHours: parseInt(e.target.value) || 1 }))}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="folio block mb-1.5">Maximum file size (MB)</label>
+                <input
+                  type="number" min={1}
+                  value={formatSizeInput(configForm.maxFileSize)}
+                  onChange={e => setConfigForm(p => ({ ...p, maxFileSize: (parseInt(e.target.value) || 1) * 1024 * 1024 }))}
+                  className="input"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="folio">Live settings</div>
+              <dl className="telem">
+                <dt>Cleanup cadence</dt>   <dd>{config.retention.cleanupIntervalMinutes} min</dd>
+                <dt>Rate window</dt>       <dd>{config.rateLimiting.windowMs / 60000} min</dd>
+                <dt>Rate ceiling</dt>      <dd>{config.rateLimiting.maxRequests} req</dd>
+                {config.retention.allowedExtensions && (
+                  <>
+                    <dt>Allowed types</dt>
+                    <dd>
+                      {config.retention.allowedExtensions.length > 0 ? (
+                        <span className="chip">{config.retention.allowedExtensions.join(' · ')}</span>
+                      ) : (
+                        <span className="chip">all</span>
+                      )}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            </div>
+          </div>
+          <div className="mt-6 pt-5 border-t border-rule flex items-center gap-3">
+            <button onClick={handleConfigSave} disabled={configSaving} className="btn btn-primary">
+              {configSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {configSaving ? 'Saving…' : 'Save configuration'}
+            </button>
+            {configSaved && (
+              <span className="folio flex items-center gap-2" style={{ color: 'var(--green)' }}>
+                <span className="led led-on" /> Saved
+              </span>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* System */}
+      <section className="plate">
+        <div className="folio mb-4">§ 02.b · House rules</div>
+        <ul className="text-ink-soft space-y-1" style={{ fontSize: 13, listStyle: 'none', paddingLeft: 0 }}>
+          <li>· Files are auto-purged on the retention schedule.</li>
+          <li>· Uploads are rate-limited to discourage abuse.</li>
+          <li>· The server never holds decryption keys.</li>
+          <li>· Configuration changes apply immediately.</li>
+        </ul>
+      </section>
     </div>
   )
 }
+
+interface StatPlateProps {
+  icon: React.ReactNode
+  label: string
+  value: string
+  sub?: string
+  tone?: 'default' | 'amber'
+}
+
+const StatPlate: React.FC<StatPlateProps> = ({ icon, label, value, sub, tone }) => (
+  <div className="plate">
+    <div className="flex items-start justify-between">
+      <div>
+        <div className="folio mb-2">{label}</div>
+        <div className="font-display italic" style={{ fontSize: 32, color: tone === 'amber' ? 'var(--amber)' : 'var(--ink)' }}>
+          {value}
+        </div>
+        {sub && <div className="folio mt-2" style={{ color: tone === 'amber' ? 'var(--amber)' : 'var(--ink-faint)' }}>{sub}</div>}
+      </div>
+      <div className="text-ink-faint">{icon}</div>
+    </div>
+  </div>
+)
 
 export default Admin

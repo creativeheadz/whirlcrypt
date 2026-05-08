@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
-import { Download as DownloadIcon, Clock, AlertCircle, CheckCircle2, Lock } from 'lucide-react'
+import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock } from 'lucide-react'
 import { ClientCrypto } from '../crypto/rfc8188'
-// import axios from 'axios' // (unused after streaming refactor)
+import axios from 'axios'
 
 interface FileInfo {
   filename: string
@@ -30,60 +30,30 @@ const Download: React.FC = () => {
     progress: 0,
     error: null,
     keys: null,
-    downloaded: false
+    downloaded: false,
   })
 
-  // Helper function to download using Blob
-  const downloadWithBlob = (data: Uint8Array, filename: string) => {
-    // Create blob from the typed array - use type assertion for library compatibility
-    const blob = new Blob([data as any], {
-      type: 'application/octet-stream'
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
-
   useEffect(() => {
-    // Extract keys from URL fragment
     const keys = ClientCrypto.extractKeysFromUrl()
     if (!keys) {
-      setState(prev => ({ 
-        ...prev, 
-        error: 'Invalid download link - missing encryption keys' 
-      }))
+      setState(prev => ({ ...prev, error: 'Invalid download link — missing encryption keys.' }))
       return
     }
-
     setState(prev => ({ ...prev, keys }))
-
-    // Don't fetch file info - metadata will be revealed only after successful decryption
   }, [id])
 
   const handleDownload = async () => {
     if (!id || !state.keys) return
-
     setState(prev => ({ ...prev, downloading: true, progress: 0, error: null }))
 
     try {
-      // Get original hex key from URL fragment (don't double-convert)
-      const fragment = window.location.hash.substring(1);
-      const params = new URLSearchParams(fragment);
-      const keyHex = params.get('key');
+      const fragment = window.location.hash.substring(1)
+      const params = new URLSearchParams(fragment)
+      const keyHex = params.get('key')
+      if (!keyHex) throw new Error('Missing encryption key in URL')
 
-      if (!keyHex) {
-        throw new Error('Missing encryption key in URL');
-      }
-
-      // Extract original filename from URL fragment
       const filename = params.get('filename') || `decrypted-file-${id.substring(0, 8)}`
 
-      // Use fetch API with streaming for better memory efficiency
       const response = await fetch(`/api/download/${id}`, {
         headers: { 'x-encryption-key': keyHex },
       })
@@ -92,28 +62,21 @@ const Download: React.FC = () => {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
+      if (!response.body) throw new Error('Response body is not available')
 
-      if (!response.body) {
-        throw new Error('Response body is not available')
-      }
-
-  // Use streaming decryption for better memory efficiency
-  console.log('Starting streaming download and decryption...')
-
-  let fileWriter: any = null
-  let blobParts: Uint8Array[] = []
-  const BLOB_FLUSH_THRESHOLD = 25 * 1024 * 1024 // 25MB chunks for fallback
-  let receivedBytes = 0
+      let fileWriter: any = null
+      const blobParts: Uint8Array[] = []
+      let receivedBytes = 0
 
       const useFileSystemAPI = 'showSaveFilePicker' in window
       if (useFileSystemAPI) {
         try {
           const handle = await (window as any).showSaveFilePicker({
             suggestedName: filename,
-            types: [{ description: 'File', accept: { 'application/octet-stream': ['.*'] } }]
+            types: [{ description: 'File', accept: { 'application/octet-stream': ['.*'] } }],
           })
           fileWriter = await handle.createWritable()
-        } catch (e:any) {
+        } catch (e: any) {
           if (e?.name === 'AbortError') throw e
         }
       }
@@ -125,25 +88,12 @@ const Download: React.FC = () => {
         {
           onChunk: async (chunk: Uint8Array) => {
             receivedBytes += chunk.length
-            if (fileWriter) {
-              await fileWriter.write(chunk)
-            } else {
-              blobParts.push(chunk)
-              // Flush periodically to reduce memory pressure
-              if (blobParts.length > 1) {
-                const totalBuffered = blobParts.reduce((s,c)=>s+c.length,0)
-                if (totalBuffered >= BLOB_FLUSH_THRESHOLD) {
-                  // Create an object URL to progressively download flushed part (optional enhancement)
-                  // For now we keep accumulating but could stream to IndexedDB / partial download.
-                }
-              }
-            }
+            if (fileWriter) await fileWriter.write(chunk)
+            else blobParts.push(chunk)
           },
           onComplete: async () => {
-            if (fileWriter) {
-              await fileWriter.close()
-            } else {
-              // Fallback: assemble final blob (only safe for moderate sizes)
+            if (fileWriter) await fileWriter.close()
+            else {
               const finalBlob = new Blob(blobParts, { type: 'application/octet-stream' })
               const url = URL.createObjectURL(finalBlob)
               const a = document.createElement('a')
@@ -154,7 +104,7 @@ const Download: React.FC = () => {
               a.remove()
               URL.revokeObjectURL(url)
             }
-          }
+          },
         },
         (downloaded, decrypted) => {
           const progress = Math.min(95, (decrypted / (downloaded || 1)) * 95)
@@ -162,9 +112,6 @@ const Download: React.FC = () => {
         }
       )
 
-      setState(prev => ({ ...prev, progress: 100 }))
-
-      // Set file info after successful decryption
       setState(prev => ({
         ...prev,
         downloading: false,
@@ -176,35 +123,20 @@ const Download: React.FC = () => {
           contentType: 'application/octet-stream',
           uploadDate: new Date().toISOString(),
           expiresAt: new Date().toISOString(),
-          downloadCount: 0
-        }
+          downloadCount: 0,
+        },
       }))
-
     } catch (error) {
       console.error('Download error:', error)
-
-      let errorMessage = 'Download failed';
-
+      let errorMessage = 'Download failed'
       if (axios.isAxiosError(error)) {
-        // Network/HTTP error
-        errorMessage = error.response?.data?.error || `HTTP ${error.response?.status}: ${error.message}`;
+        errorMessage = error.response?.data?.error || `HTTP ${error.response?.status}: ${error.message}`
       } else if (error instanceof Error) {
-        // Decryption or other processing error
-        if (error.message.includes('Decryption failed')) {
-          errorMessage = `Decryption error: ${error.message}`;
-        } else if (error.message.includes('Invalid encrypted data')) {
-          errorMessage = `File corruption: ${error.message}`;
-        } else {
-          errorMessage = `Processing error: ${error.message}`;
-        }
+        if (error.message.includes('Decryption failed')) errorMessage = `Decryption error: ${error.message}`
+        else if (error.message.includes('Invalid encrypted data')) errorMessage = `File corruption: ${error.message}`
+        else errorMessage = `Processing error: ${error.message}`
       }
-
-      setState(prev => ({
-        ...prev,
-        downloading: false,
-        progress: 0,
-        error: errorMessage
-      }))
+      setState(prev => ({ ...prev, downloading: false, progress: 0, error: errorMessage }))
     }
   }
 
@@ -216,174 +148,130 @@ const Download: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const formatTimeRemaining = (expiresAt: string): string => {
-    const now = new Date()
-    const expires = new Date(expiresAt)
-    const diff = expires.getTime() - now.getTime()
-
-    if (diff <= 0) return 'Expired'
-
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m remaining`
-    } else {
-      return `${minutes}m remaining`
-    }
-  }
-
-  // Redirect if no file ID
-  if (!id) {
-    return <Navigate to="/" replace />
-  }
+  if (!id) return <Navigate to="/" replace />
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Download File
-        </h1>
-        <p className="text-gray-600">
-          Secure encrypted file download
+    <div className="max-w-3xl mx-auto space-y-10">
+      {/* Masthead */}
+      <header className="space-y-3">
+        <div className="folio">§ 01 · Receive</div>
+        <h1 className="display">An envelope, addressed to whoever holds this link.</h1>
+        <p className="max-w-2xl text-ink-soft" style={{ fontSize: 13, lineHeight: 1.65 }}>
+          The bytes on the server are sealed. Decryption happens in your browser, with the key carried
+          only in the URL fragment. The metadata below appears after a successful decrypt — by design.
         </p>
-      </div>
+      </header>
 
-      {/* Generic Download Card - Before decryption */}
+      {/* Pre-decrypt */}
       {!state.downloaded && !state.error && (
-        <div className="card p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <Lock className="h-8 w-8 text-orange-500" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Encrypted File</h2>
-              <p className="text-gray-600">Ready to download and decrypt</p>
+        <section className="plate">
+          <div className="folio mb-4">§ 02 · The envelope</div>
+          <div className="flex items-start gap-4">
+            <div
+              className="flex items-center justify-center"
+              style={{
+                width: 56, height: 56,
+                border: '1px solid var(--rule-strong)',
+                color: 'var(--ember)',
+              }}
+            >
+              <Lock className="h-6 w-6" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <div className="font-display italic text-xl">Sealed file ready.</div>
+              <div className="folio">
+                ID · {id.substring(0, 8)}…
+              </div>
+              <p className="text-ink-soft" style={{ fontSize: 13 }}>
+                Click below. The browser will fetch the encrypted bytes, stream-decrypt them, and
+                save the file. Filename and metadata reveal only after decryption succeeds.
+              </p>
             </div>
           </div>
 
-          {/* Download Button */}
           <div className="mt-6">
             <button
               onClick={handleDownload}
               disabled={state.downloading || !state.keys}
-              className="btn-primary w-full flex items-center justify-center"
+              className="btn btn-primary w-full justify-center"
             >
-              <DownloadIcon className="h-4 w-4 mr-2" />
-              {state.downloading ? 'Downloading...' : 'Download & Decrypt File'}
+              <DownloadIcon className="h-3.5 w-3.5" />
+              {state.downloading ? 'Working…' : 'Download & decrypt'}
             </button>
           </div>
 
-          {/* Progress Bar */}
           {state.downloading && (
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-1">
-                <span>Downloading and decrypting...</span>
+            <div className="mt-5">
+              <div className="flex justify-between folio mb-1">
+                <span>Decrypting</span>
                 <span>{Math.round(state.progress)}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${state.progress}%` }}
-                />
-              </div>
+              <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
             </div>
           )}
-        </div>
+        </section>
       )}
 
-      {/* File Info Card - Only shown after successful decryption */}
+      {/* Post-decrypt */}
       {state.downloaded && state.fileInfo && (
-        <div className="card p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {state.fileInfo.filename}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {formatFileSize(state.fileInfo.size)} • {state.fileInfo.contentType}
-                </p>
-              </div>
+        <section className="plate">
+          <div className="folio mb-4">§ 02 · Delivered</div>
+          <div className="flex items-start gap-4">
+            <div
+              className="flex items-center justify-center"
+              style={{
+                width: 56, height: 56,
+                border: '1px solid var(--rule-strong)',
+                color: 'var(--green)',
+              }}
+            >
+              <CheckCircle2 className="h-6 w-6" />
             </div>
-            <div className="flex items-center text-sm text-gray-500">
-              <Lock className="h-4 w-4 mr-1" />
-              <span>Encrypted</span>
-            </div>
-          </div>
-
-          {/* File Details */}
-          <div className="grid grid-cols-2 gap-4 text-sm border-t pt-4">
-            <div>
-              <span className="font-medium text-gray-700">Uploaded:</span>
-              <p className="text-gray-500">
-                {new Date(state.fileInfo.uploadDate).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">Downloads:</span>
-              <p className="text-gray-500">{state.fileInfo.downloadCount}</p>
-            </div>
-            <div className="col-span-2">
-              <span className="font-medium text-gray-700">
-                <Clock className="h-4 w-4 inline mr-1" />
-                Expires:
-              </span>
-              <p className="text-gray-500">
-                {formatTimeRemaining(state.fileInfo.expiresAt)}
-              </p>
+            <div className="flex-1 space-y-2">
+              <div className="font-display italic text-xl">{state.fileInfo.filename}</div>
+              <div className="folio">{formatFileSize(state.fileInfo.size)}</div>
             </div>
           </div>
-
-          {/* Success Message */}
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
-            <div className="flex items-center">
-              <CheckCircle2 className="h-4 w-4 text-green-500 mr-2" />
-              <span className="text-green-700 text-sm">
-                File downloaded and decrypted successfully!
-              </span>
-            </div>
+          <div className="mt-5 strip strip-success">
+            <CheckCircle2 className="h-4 w-4 text-led-green flex-shrink-0 mt-0.5" />
+            <div style={{ fontSize: 13 }}>Decrypted in your browser — the server saw nothing readable.</div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Error Message */}
+      {/* Error */}
       {state.error && (
-        <div className="card p-6">
-          <div className="flex items-center">
-            <AlertCircle className="h-8 w-8 text-red-500 mr-3" />
-            <div>
-              <h3 className="text-lg font-semibold text-red-800">Download Error</h3>
-              <p className="text-red-600">{state.error}</p>
+        <section className="plate">
+          <div className="folio mb-4">§ 02 · Trouble</div>
+          <div className="strip strip-error">
+            <AlertCircle className="h-5 w-5 text-led-red flex-shrink-0 mt-0.5" />
+            <div className="space-y-2">
+              <div className="font-display italic text-lg text-ink">Could not deliver.</div>
+              <div className="text-ink-soft" style={{ fontSize: 13 }}>{state.error}</div>
             </div>
           </div>
-          
-          <div className="mt-4 pt-4 border-t">
-            <p className="text-sm text-gray-600">
-              Possible reasons:
-            </p>
-            <ul className="mt-2 text-sm text-gray-500 list-disc list-inside">
-              <li>File has expired or been deleted</li>
-              <li>Invalid or corrupted download link</li>
-              <li>Missing encryption keys in URL</li>
+
+          <div className="mt-5">
+            <div className="folio mb-2">Likely causes</div>
+            <ul className="text-ink-soft space-y-1" style={{ fontSize: 13, listStyle: 'none', paddingLeft: 0 }}>
+              <li>· The file expired or was deleted.</li>
+              <li>· The link is corrupt or shortened past its fragment.</li>
+              <li>· The encryption key is missing or wrong.</li>
             </ul>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Security Info */}
-      <div className="card p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-          <Lock className="h-5 w-5 mr-2 text-primary-600" />
-          Download Security
-        </h3>
-        <div className="text-sm text-gray-600 space-y-2">
-          <p>• File is encrypted with AES-128-GCM using RFC 8188 standard</p>
-          <p>• Decryption keys are embedded in this URL and never sent to the server</p>
-          <p>• File is decrypted in your browser for maximum security</p>
-          <p>• Download link will expire automatically after the retention period</p>
-        </div>
-      </div>
+      {/* Mechanism */}
+      <section className="plate">
+        <div className="folio mb-4">§ 03 · The mechanism</div>
+        <dl className="telem">
+          <dt>Cipher</dt>        <dd>AES-128-GCM, RFC 8188 record stream</dd>
+          <dt>Decrypt</dt>       <dd>In your browser, never on the server</dd>
+          <dt>Key transit</dt>   <dd>URL fragment — not transmitted in HTTP</dd>
+          <dt>Expiry</dt>        <dd>Auto-purge after retention window</dd>
+        </dl>
+      </section>
     </div>
   )
 }
