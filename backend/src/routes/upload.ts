@@ -70,6 +70,17 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       });
     }
 
+    let maxDownloads: number | undefined;
+    if (req.body.maxDownloads !== undefined && req.body.maxDownloads !== '') {
+      maxDownloads = parseInt(req.body.maxDownloads, 10);
+      if (!Number.isFinite(maxDownloads) || maxDownloads < 1 || maxDownloads > 1000) {
+        await safeUnlink(tempPath);
+        return res.status(400).json({
+          error: 'maxDownloads must be a positive integer between 1 and 1000'
+        });
+      }
+    }
+
     const fileManager = getFileManager();
     const metadata = await fileManager.storeFileFromPath(
       req.file.path,
@@ -77,7 +88,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       req.file.originalname,
       req.file.mimetype,
       retentionHours,
-      undefined,             // maxDownloads
+      maxDownloads,
       req.ip,                // uploaderIP for encrypted metadata
       req.headers['user-agent'] // userAgent for encrypted metadata
     );

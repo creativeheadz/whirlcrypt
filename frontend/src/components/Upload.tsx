@@ -40,6 +40,7 @@ interface UploadState {
   error: string | null
   shareUrl: string | null
   retentionHours: number
+  burnAfterRead: boolean
   isFolder: boolean
   folderName: string | null
 }
@@ -55,6 +56,7 @@ const UploadPage: React.FC = () => {
     error: null,
     shareUrl: null,
     retentionHours: 24,
+    burnAfterRead: false,
     isFolder: false,
     folderName: null,
   })
@@ -196,6 +198,11 @@ const UploadPage: React.FC = () => {
               controller.enqueue(encoder.encode(
                 `--${boundary}\r\nContent-Disposition: form-data; name="retentionHours"\r\n\r\n${state.retentionHours}\r\n`
               ))
+              if (state.burnAfterRead) {
+                controller.enqueue(encoder.encode(
+                  `--${boundary}\r\nContent-Disposition: form-data; name="maxDownloads"\r\n\r\n1\r\n`
+                ))
+              }
               controller.enqueue(encoder.encode(
                 `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${opaqueUploadName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
               ))
@@ -243,6 +250,7 @@ const UploadPage: React.FC = () => {
         })
         const formData = new FormData()
         formData.append('retentionHours', String(state.retentionHours))
+        if (state.burnAfterRead) formData.append('maxDownloads', '1')
         formData.append('file', encryptedBlob, opaqueUploadName)
 
         // Encryption is done; from here we're at the network's mercy.
@@ -394,23 +402,46 @@ const UploadPage: React.FC = () => {
           )}
         </div>
 
-        {/* Retention */}
+        {/* Retention + burn-after-reading */}
         {hasSelection && !state.shareUrl && (
-          <div className="mt-6 pt-5 border-t border-rule">
-            <label className="folio block mb-2 flex items-center gap-2">
-              <Clock className="h-3.5 w-3.5" />
-              {state.isFolder ? 'Folder' : 'File'} retention
+          <div className="mt-6 pt-5 border-t border-rule space-y-5">
+            <div>
+              <label className="folio block mb-2 flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5" />
+                {state.isFolder ? 'Folder' : 'File'} retention
+              </label>
+              <select
+                value={state.retentionHours}
+                onChange={e => setState(prev => ({ ...prev, retentionHours: parseInt(e.target.value) }))}
+                className="input max-w-xs"
+                disabled={state.uploading}
+              >
+                {retentionOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={state.burnAfterRead}
+                disabled={state.uploading}
+                onChange={e => setState(prev => ({ ...prev, burnAfterRead: e.target.checked }))}
+                className="mt-1 h-3.5 w-3.5 cursor-pointer"
+                style={{ accentColor: 'var(--ember)' }}
+              />
+              <span>
+                <span className="folio block flex items-center gap-2">
+                  <Lock className="h-3 w-3" />
+                  Burn after reading
+                </span>
+                <span className="block text-ink-faint mt-1" style={{ fontSize: 11, lineHeight: 1.5 }}>
+                  Delete the {state.isFolder ? 'folder' : 'file'} the moment the first download finishes.
+                  Subsequent visits to the link get a 404. Useful for one-shot deliveries.
+                </span>
+              </span>
             </label>
-            <select
-              value={state.retentionHours}
-              onChange={e => setState(prev => ({ ...prev, retentionHours: parseInt(e.target.value) }))}
-              className="input max-w-xs"
-              disabled={state.uploading}
-            >
-              {retentionOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
           </div>
         )}
 
