@@ -118,7 +118,7 @@ app.use('/api/upload', uploadRateLimitMiddleware, uploadRouter);
 app.use('/api/download', downloadRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin', adminRouter);
-app.use('/api/security', securityRouter); // Public security dashboard
+app.use('/api/security', securityRouter); // Now only /api/security/csp-report; public dashboard retired
 
 // Serve static files (error pages, etc.)
 app.use(express.static(join(__dirname, '../public')));

@@ -65,9 +65,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Logo />
             </Link>
             <nav className="flex items-center">
-              <NavLink to="/"        label="Upload" kicker="§ I"   active={location.pathname === '/'} />
-              <NavLink to="/admin"   label="Admin"  kicker="§ II"  active={location.pathname === '/admin'} />
-              <NavLink to="/security" label="Wall"  kicker="§ III" active={location.pathname === '/security'} />
+              <NavLink to="/"      label="Upload" kicker="§ I"  active={location.pathname === '/'} />
+              <NavLink to="/admin" label="Admin"  kicker="§ II" active={location.pathname === '/admin'} />
               <span
                 className="mx-2 w-px h-7"
                 style={{ background: 'var(--rule)' }}

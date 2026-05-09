@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Trash2, RefreshCw, HardDrive, Clock, FileText, AlertTriangle, LogOut, Save } from 'lucide-react'
+import { Trash2, RefreshCw, HardDrive, Clock, FileText, AlertTriangle, LogOut, Save, Shield } from 'lucide-react'
 import axios from 'axios'
 import AdminLogin from './AdminLogin'
 
@@ -30,9 +30,18 @@ interface Config {
   maxFileSize: number
 }
 
+interface SecuritySummary {
+  attacksLast24h: number
+  totalAttacks: number
+  uniqueIPs: number
+  topCategory: { name: string; count: number } | null
+  bans: { permanent: number; temporary: number; total: number }
+}
+
 const Admin: React.FC = () => {
   const [stats, setStats] = useState<Stats | null>(null)
   const [config, setConfig] = useState<Config | null>(null)
+  const [security, setSecurity] = useState<SecuritySummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
@@ -66,12 +75,14 @@ const Admin: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      const [statsResponse, configResponse] = await Promise.all([
+      const [statsResponse, configResponse, securityResponse] = await Promise.all([
         axios.get('/api/admin/stats'),
         axios.get('/api/admin/config'),
+        axios.get('/api/admin/security-summary').catch(() => null),
       ])
       setStats(statsResponse.data)
       setConfig(configResponse.data)
+      if (securityResponse?.data) setSecurity(securityResponse.data)
       setConfigForm({
         defaultRetentionHours: configResponse.data.retention.defaultRetentionHours,
         maxRetentionHours: configResponse.data.retention.maxRetentionHours,
@@ -204,6 +215,35 @@ const Admin: React.FC = () => {
             tone={stats.expiredFiles > 0 ? 'amber' : 'default'}
             sub={stats.expiredFiles > 0 ? 'ready to sweep' : undefined}
           />
+        </section>
+      )}
+
+      {/* Defenses (security telemetry — counts only, no IPs or paths) */}
+      {security && (
+        <section className="plate">
+          <div className="folio mb-4 flex items-center gap-2">
+            <Shield className="h-3.5 w-3.5" /> § 02.0 · Defenses (last 24h)
+          </div>
+          <dl className="telem">
+            <dt>Attacks blocked (24h)</dt>
+            <dd>{security.attacksLast24h.toLocaleString()}</dd>
+            <dt>Total ever</dt>
+            <dd>{security.totalAttacks.toLocaleString()}</dd>
+            <dt>Unique IPs</dt>
+            <dd>{security.uniqueIPs.toLocaleString()}</dd>
+            <dt>Top category</dt>
+            <dd>
+              {security.topCategory
+                ? <>{security.topCategory.name} <span className="text-ink-faint">· {security.topCategory.count.toLocaleString()}</span></>
+                : <span className="text-ink-faint">none</span>}
+            </dd>
+            <dt>Bans</dt>
+            <dd>
+              {security.bans.permanent.toLocaleString()} permanent
+              <span className="text-ink-faint"> · </span>
+              {security.bans.temporary.toLocaleString()} temporary
+            </dd>
+          </dl>
         </section>
       )}
 

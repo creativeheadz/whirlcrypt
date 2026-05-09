@@ -3,6 +3,8 @@ import { config } from '../config/config';
 import { getFileManager } from '../services/fileManagerService';
 import { requireAuth, logAction, withAuth, AuthenticatedRequest } from '../auth/middleware';
 import { certificateMonitoringJob } from '../jobs/certificateMonitoring';
+import { AttackLogger } from '../services/AttackLogger';
+import { BanManager } from '../services/BanManager';
 
 const router = Router();
 
@@ -47,6 +49,39 @@ router.get('/stats', requireAuth, logAction('VIEW_STATS'), withAuth(async (req: 
   } catch (error) {
     console.error('Stats error:', error);
     const message = error instanceof Error ? error.message : 'Failed to get stats';
+    res.status(500).json({ error: message });
+  }
+}));
+
+/**
+ * Aggregate security telemetry — counts only, no IPs or paths.
+ * Replaces the retired public /security dashboard.
+ * GET /api/admin/security-summary
+ */
+router.get('/security-summary', requireAuth, logAction('VIEW_SECURITY'), withAuth(async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const attackLogger = new AttackLogger();
+    const banManager = new BanManager();
+    const [stats, walls] = await Promise.all([
+      attackLogger.getAttackStats(),
+      banManager.getWallOfShame(),
+    ]);
+
+    const top = stats.topCategories[0];
+    res.json({
+      attacksLast24h: stats.attacksToday,
+      totalAttacks: stats.totalAttacks,
+      uniqueIPs: stats.uniqueIPs,
+      topCategory: top ? { name: top.category, count: top.count } : null,
+      bans: {
+        permanent: walls.permanentBans.length,
+        temporary: walls.temporaryBans.length,
+        total: walls.permanentBans.length + walls.temporaryBans.length,
+      },
+    });
+  } catch (error) {
+    console.error('Security summary error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get security summary';
     res.status(500).json({ error: message });
   }
 }));
