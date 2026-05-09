@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
-import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock } from 'lucide-react'
+import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock, KeyRound } from 'lucide-react'
 import { ClientCrypto, EnvelopeMetadata } from '../crypto/rfc8188'
 import axios from 'axios'
 
@@ -15,7 +15,16 @@ interface DownloadState {
   downloading: boolean
   progress: number
   error: string | null
-  keys: { key: Uint8Array; salt: Uint8Array } | null
+
+  // URL fragment params
+  keyOrWrapped: Uint8Array | null
+  salt: Uint8Array | null
+  passphraseSalt: Uint8Array | null   // null when the link doesn't need a passphrase
+
+  // user-entered passphrase + per-attempt error
+  passphrase: string
+  passphraseError: string | null
+
   downloaded: boolean
 }
 
@@ -26,25 +35,57 @@ const Download: React.FC = () => {
     downloading: false,
     progress: 0,
     error: null,
-    keys: null,
+    keyOrWrapped: null,
+    salt: null,
+    passphraseSalt: null,
+    passphrase: '',
+    passphraseError: null,
     downloaded: false,
   })
 
   useEffect(() => {
-    const keys = ClientCrypto.extractKeysFromUrl()
-    if (!keys) {
+    const parsed = ClientCrypto.extractKeysFromUrl()
+    if (!parsed) {
       setState(prev => ({
         ...prev,
         error: 'Invalid or outdated download link — missing encryption keys.',
       }))
       return
     }
-    setState(prev => ({ ...prev, keys }))
+    setState(prev => ({
+      ...prev,
+      keyOrWrapped: parsed.keyOrWrapped,
+      salt: parsed.salt,
+      passphraseSalt: parsed.passphraseSalt,
+    }))
   }, [id])
 
   const handleDownload = async () => {
-    if (!id || !state.keys) return
-    setState(prev => ({ ...prev, downloading: true, progress: 0, error: null }))
+    if (!id || !state.keyOrWrapped || !state.salt) return
+
+    // Resolve the actual file key. If the link is passphrase-locked, unwrap
+    // the key with the user-supplied passphrase first.
+    let key: Uint8Array
+    if (state.passphraseSalt) {
+      if (state.passphrase.length === 0) {
+        setState(prev => ({ ...prev, passphraseError: 'Enter the passphrase to unlock.' }))
+        return
+      }
+      try {
+        key = await ClientCrypto.unwrapKeyWithPassphrase(
+          state.keyOrWrapped,
+          state.passphrase,
+          state.passphraseSalt,
+        )
+      } catch (e: any) {
+        setState(prev => ({ ...prev, passphraseError: 'Failed to derive key from passphrase.' }))
+        return
+      }
+    } else {
+      key = state.keyOrWrapped
+    }
+
+    setState(prev => ({ ...prev, downloading: true, progress: 0, error: null, passphraseError: null }))
 
     try {
       const response = await fetch(`/api/download/${id}`)
@@ -54,11 +95,8 @@ const Download: React.FC = () => {
       }
       if (!response.body) throw new Error('Response body is not available')
 
-      // We don't know the filename until decryption emits the metadata header,
-      // so we buffer the first chunks in memory and decide where to send the
-      // rest once metadata arrives.
       let metadata: EnvelopeMetadata | null = null
-      let fileWriter: any = null   // FileSystemWritableFileStream when supported
+      let fileWriter: any = null
       const blobParts: Uint8Array[] = []
       let receivedBytes = 0
 
@@ -66,8 +104,8 @@ const Download: React.FC = () => {
 
       await ClientCrypto.decryptEnvelopeToSink(
         response.body,
-        state.keys.key,
-        state.keys.salt,
+        key,
+        state.salt,
         {
           onMetadata: async (m) => {
             metadata = m
@@ -83,10 +121,8 @@ const Download: React.FC = () => {
                 fileWriter = await handle.createWritable()
               } catch (e: any) {
                 if (e?.name === 'AbortError') throw e
-                // Picker not available or user dismissed — fall back to in-memory blob
               }
             }
-            // reveal filename in the UI as soon as we have it
             setState(prev => ({
               ...prev,
               fileInfo: { filename: m.filename, size: 0, contentType: m.contentType },
@@ -136,6 +172,25 @@ const Download: React.FC = () => {
       }))
     } catch (error) {
       console.error('Download error:', error)
+      const isAuthFailure = error instanceof Error && (
+        error.message.includes('OperationError') ||
+        error.message.includes('salt mismatch') ||
+        error.message.includes('delimiter')
+      )
+
+      // A passphrase-locked link that fails AES-GCM auth almost always means
+      // a wrong passphrase. Steer the user back to the passphrase input
+      // rather than treating the page as terminally broken.
+      if (state.passphraseSalt && isAuthFailure) {
+        setState(prev => ({
+          ...prev,
+          downloading: false,
+          progress: 0,
+          passphraseError: 'Wrong passphrase. Try again.',
+        }))
+        return
+      }
+
       let errorMessage = 'Download failed'
       if (axios.isAxiosError(error)) {
         errorMessage = error.response?.data?.error || `HTTP ${error.response?.status}: ${error.message}`
@@ -164,6 +219,8 @@ const Download: React.FC = () => {
 
   if (!id) return <Navigate to="/" replace />
 
+  const passphraseRequired = state.passphraseSalt !== null
+
   return (
     <div className="max-w-3xl mx-auto space-y-10">
       {/* Masthead */}
@@ -172,7 +229,8 @@ const Download: React.FC = () => {
         <h1 className="display">An envelope, addressed to whoever holds this link.</h1>
         <p className="max-w-2xl text-ink-soft" style={{ fontSize: 13, lineHeight: 1.65 }}>
           The bytes on the server are sealed. Decryption happens in your browser, with the key carried
-          only in the URL fragment. The filename and type appear once decryption confirms the link is intact.
+          only in the URL fragment{passphraseRequired ? ' and a passphrase shared out-of-band' : ''}.
+          The filename and type appear once decryption confirms the link is intact.
         </p>
       </header>
 
@@ -195,22 +253,57 @@ const Download: React.FC = () => {
               <div className="font-display italic text-xl">Sealed file ready.</div>
               <div className="folio">
                 ID · {id.substring(0, 8)}…
+                {passphraseRequired && <span className="ml-3" style={{ color: 'var(--ember)' }}>· passphrase required</span>}
               </div>
               <p className="text-ink-soft" style={{ fontSize: 13 }}>
-                Click below. The browser will fetch the encrypted bytes, stream-decrypt them, and
-                save the file. Filename and metadata reveal only after decryption succeeds.
+                {passphraseRequired
+                  ? 'The sender has locked this link with a passphrase. Enter it below to derive the decryption key.'
+                  : 'Click below. The browser will fetch the encrypted bytes, stream-decrypt them, and save the file.'}
               </p>
             </div>
           </div>
 
+          {passphraseRequired && (
+            <div className="mt-6 space-y-3">
+              <label className="folio block flex items-center gap-2">
+                <KeyRound className="h-3 w-3" />
+                Passphrase
+              </label>
+              <input
+                type="password"
+                value={state.passphrase}
+                onChange={e => setState(prev => ({ ...prev, passphrase: e.target.value, passphraseError: null }))}
+                onKeyDown={e => { if (e.key === 'Enter' && !state.downloading) handleDownload() }}
+                disabled={state.downloading}
+                autoFocus
+                autoComplete="off"
+                className="input max-w-md"
+                placeholder="Enter the passphrase the sender shared with you"
+              />
+              {state.passphraseError && (
+                <div className="folio" style={{ color: 'var(--red)' }}>
+                  {state.passphraseError}
+                </div>
+              )}
+              <div className="folio text-ink-faint" style={{ fontSize: 10 }}>
+                The passphrase is fed to PBKDF2-SHA256 (600k iterations) to unwrap the file key.
+                The passphrase itself never leaves your browser.
+              </div>
+            </div>
+          )}
+
           <div className="mt-6">
             <button
               onClick={handleDownload}
-              disabled={state.downloading || !state.keys}
+              disabled={state.downloading || !state.keyOrWrapped || (passphraseRequired && state.passphrase.length === 0)}
               className="btn btn-primary w-full justify-center"
             >
               <DownloadIcon className="h-3.5 w-3.5" />
-              {state.downloading ? 'Working…' : 'Download & decrypt'}
+              {state.downloading
+                ? 'Working…'
+                : passphraseRequired
+                ? 'Unlock & download'
+                : 'Download & decrypt'}
             </button>
           </div>
 
@@ -268,7 +361,7 @@ const Download: React.FC = () => {
           <div className="mt-5">
             <div className="folio mb-2">Likely causes</div>
             <ul className="text-ink-soft space-y-1" style={{ fontSize: 13, listStyle: 'none', paddingLeft: 0 }}>
-              <li>· The file expired or was deleted.</li>
+              <li>· The file expired or was deleted (or burned after a previous download).</li>
               <li>· The link is corrupt or shortened past its fragment.</li>
               <li>· The link is from before today's wire-format upgrade — please re-share.</li>
               <li>· The encryption key is missing or wrong.</li>
@@ -285,6 +378,12 @@ const Download: React.FC = () => {
           <dt>Decrypt</dt>       <dd>In your browser, never on the server</dd>
           <dt>Key transit</dt>   <dd>URL fragment — not transmitted in HTTP</dd>
           <dt>Filename</dt>      <dd>Sealed inside the envelope, revealed on decrypt</dd>
+          {passphraseRequired && (
+            <>
+              <dt>Passphrase KDF</dt>
+              <dd>PBKDF2-SHA256, 600 000 iterations</dd>
+            </>
+          )}
           <dt>Expiry</dt>        <dd>Auto-purge after retention window</dd>
         </dl>
       </section>

@@ -41,6 +41,9 @@ interface UploadState {
   shareUrl: string | null
   retentionHours: number
   burnAfterRead: boolean
+  passphraseEnabled: boolean
+  passphrase: string
+  passphraseConfirm: string
   isFolder: boolean
   folderName: string | null
 }
@@ -57,6 +60,9 @@ const UploadPage: React.FC = () => {
     shareUrl: null,
     retentionHours: 24,
     burnAfterRead: false,
+    passphraseEnabled: false,
+    passphrase: '',
+    passphraseConfirm: '',
     isFolder: false,
     folderName: null,
   })
@@ -155,6 +161,18 @@ const UploadPage: React.FC = () => {
 
   const handleUpload = async () => {
     if (!state.file && !state.files) return
+
+    if (state.passphraseEnabled) {
+      if (state.passphrase.length < 8) {
+        showError('Passphrase too short', 'Use at least 8 characters.')
+        return
+      }
+      if (state.passphrase !== state.passphraseConfirm) {
+        showError('Passphrase mismatch', 'The two passphrase fields do not match.')
+        return
+      }
+    }
+
     const initialPhase: UploadPhase = state.isFolder ? 'compressing' : 'encrypting'
     setState(prev => ({ ...prev, uploading: true, progress: 0, zipProgress: 0, phase: initialPhase, error: null }))
     try {
@@ -264,11 +282,12 @@ const UploadPage: React.FC = () => {
         response = await uploadResponse.json()
       }
 
-      const shareUrl = ClientCrypto.generateShareUrl(
+      const shareUrl = await ClientCrypto.generateShareUrl(
         response.id,
         key,
         salt,
-        window.location.origin
+        window.location.origin,
+        state.passphraseEnabled ? state.passphrase : undefined,
       )
 
       setState(prev => ({ ...prev, uploading: false, progress: 100, zipProgress: 0, phase: 'done', shareUrl, error: null }))
@@ -442,6 +461,65 @@ const UploadPage: React.FC = () => {
                 </span>
               </span>
             </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={state.passphraseEnabled}
+                disabled={state.uploading}
+                onChange={e => setState(prev => ({
+                  ...prev,
+                  passphraseEnabled: e.target.checked,
+                  passphrase: e.target.checked ? prev.passphrase : '',
+                  passphraseConfirm: e.target.checked ? prev.passphraseConfirm : '',
+                }))}
+                className="mt-1 h-3.5 w-3.5 cursor-pointer"
+                style={{ accentColor: 'var(--ember)' }}
+              />
+              <span>
+                <span className="folio block flex items-center gap-2">
+                  <Lock className="h-3 w-3" />
+                  Lock with passphrase
+                </span>
+                <span className="block text-ink-faint mt-1" style={{ fontSize: 11, lineHeight: 1.5 }}>
+                  XORs the file key with a PBKDF2-derived secret. Recipients must enter the
+                  passphrase before decryption. Defends against URL leakage (screenshots,
+                  link unfurls, screen sharing). Share the passphrase out-of-band.
+                </span>
+              </span>
+            </label>
+
+            {state.passphraseEnabled && (
+              <div className="space-y-3 pl-7">
+                <div>
+                  <label className="folio block mb-1.5">Passphrase</label>
+                  <input
+                    type="password"
+                    value={state.passphrase}
+                    disabled={state.uploading}
+                    onChange={e => setState(prev => ({ ...prev, passphrase: e.target.value }))}
+                    className="input max-w-md"
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                  />
+                </div>
+                <div>
+                  <label className="folio block mb-1.5">Confirm passphrase</label>
+                  <input
+                    type="password"
+                    value={state.passphraseConfirm}
+                    disabled={state.uploading}
+                    onChange={e => setState(prev => ({ ...prev, passphraseConfirm: e.target.value }))}
+                    className="input max-w-md"
+                    autoComplete="new-password"
+                    placeholder="Re-enter to confirm"
+                  />
+                </div>
+                <div className="folio text-ink-faint" style={{ fontSize: 10 }}>
+                  Forget the passphrase, lose the file. There is no recovery.
+                </div>
+              </div>
+            )}
           </div>
         )}
 

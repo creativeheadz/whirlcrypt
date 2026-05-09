@@ -396,6 +396,70 @@ export class ClientCrypto {
   }
 
   // ────────────────────────────────────────────────────────────────────────
+  // Optional passphrase wrap (PBKDF2-SHA256)
+  //
+  // When a sender opts in, the actual AES key is XOR'd with a key derived
+  // from a passphrase via PBKDF2-SHA256 (600k iterations, OWASP). The URL
+  // fragment carries the wrapped key and the per-upload passphrase salt;
+  // the recipient enters the passphrase to recover the real key.
+  //
+  // This defends against URL-leakage paths the sender doesn't control —
+  // browser screenshots, screen-share, link unfurls, referer leaks, etc.
+  // Wrong passphrases yield a wrong key, which then fails AES-GCM auth
+  // on the first record (no oracle, no leak).
+  // ────────────────────────────────────────────────────────────────────────
+
+  static readonly PBKDF2_ITERATIONS = 600_000
+  static readonly PBKDF2_SALT_LENGTH = 16
+
+  /** Derive a 16-byte wrap key from a passphrase. */
+  static async derivePassphraseKey(passphrase: string, salt: Uint8Array): Promise<Uint8Array> {
+    const passphraseBytes = ENCODER.encode(passphrase.normalize('NFKC'))
+    const baseKey = await crypto.subtle.importKey(
+      'raw',
+      passphraseBytes as BufferSource,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits'],
+    )
+    const bits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt as BufferSource,
+        iterations: this.PBKDF2_ITERATIONS,
+        hash: 'SHA-256',
+      },
+      baseKey,
+      KEY_LENGTH * 8,
+    )
+    return new Uint8Array(bits)
+  }
+
+  /** XOR-wrap the file key with a passphrase-derived key. */
+  static async wrapKeyWithPassphrase(
+    fileKey: Uint8Array,
+    passphrase: string,
+  ): Promise<{ wrapped: Uint8Array; passphraseSalt: Uint8Array }> {
+    const passphraseSalt = this.generateRandomBytes(this.PBKDF2_SALT_LENGTH)
+    const wrapKey = await this.derivePassphraseKey(passphrase, passphraseSalt)
+    const wrapped = new Uint8Array(fileKey.length)
+    for (let i = 0; i < fileKey.length; i++) wrapped[i] = fileKey[i] ^ wrapKey[i]
+    return { wrapped, passphraseSalt }
+  }
+
+  /** Unwrap a wrapped key using the passphrase. */
+  static async unwrapKeyWithPassphrase(
+    wrapped: Uint8Array,
+    passphrase: string,
+    passphraseSalt: Uint8Array,
+  ): Promise<Uint8Array> {
+    const wrapKey = await this.derivePassphraseKey(passphrase, passphraseSalt)
+    const fileKey = new Uint8Array(wrapped.length)
+    for (let i = 0; i < wrapped.length; i++) fileKey[i] = wrapped[i] ^ wrapKey[i]
+    return fileKey
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
   // URL fragment encoding (key + salt)
   // ────────────────────────────────────────────────────────────────────────
 
@@ -419,20 +483,43 @@ export class ClientCrypto {
   /**
    * Build a share URL. Key + salt go in the fragment (never sent to the
    * server). Filename and content-type are inside the encrypted envelope.
-   * Format: `<base>/download/<id>#v=2&k=<base64url>&s=<base64url>`
+   *
+   * Without passphrase:  `#v=2&k=<key>&s=<salt>`
+   * With passphrase:     `#v=2&k=<wrapped>&s=<salt>&ps=<passphrase_salt>`
+   *                      (presence of `ps` signals "needs passphrase")
    */
-  static generateShareUrl(fileId: string, key: Uint8Array, salt: Uint8Array, baseUrl: string): string {
-    const k = this.toBase64Url(key)
+  static async generateShareUrl(
+    fileId: string,
+    key: Uint8Array,
+    salt: Uint8Array,
+    baseUrl: string,
+    passphrase?: string,
+  ): Promise<string> {
+    let kBytes = key
+    let psFrag = ''
+    if (passphrase && passphrase.length > 0) {
+      const { wrapped, passphraseSalt } = await this.wrapKeyWithPassphrase(key, passphrase)
+      kBytes = wrapped
+      psFrag = `&ps=${this.toBase64Url(passphraseSalt)}`
+    }
+    const k = this.toBase64Url(kBytes)
     const s = this.toBase64Url(salt)
-    return `${baseUrl}/download/${fileId}#v=2&k=${k}&s=${s}`
+    return `${baseUrl}/download/${fileId}#v=2&k=${k}&s=${s}${psFrag}`
   }
 
   /**
-   * Read the v2 key + salt from the current URL fragment.
+   * Read the v2 key params from the URL fragment. The returned `keyOrWrapped`
+   * is either the actual file key (when `passphraseSalt` is `null`) or a
+   * wrapped key that needs `unwrapKeyWithPassphrase` to be applied first.
+   *
    * Returns `null` if the fragment is missing, malformed, or a v1 (legacy)
    * link from before the wire-format migration.
    */
-  static extractKeysFromUrl(): { key: Uint8Array; salt: Uint8Array } | null {
+  static extractKeysFromUrl(): {
+    keyOrWrapped: Uint8Array
+    salt: Uint8Array
+    passphraseSalt: Uint8Array | null
+  } | null {
     const fragment = window.location.hash.substring(1)
     const params = new URLSearchParams(fragment)
     if (params.get('v') !== '2') return null
@@ -440,10 +527,16 @@ export class ClientCrypto {
     const s = params.get('s')
     if (!k || !s) return null
     try {
-      const key  = this.fromBase64Url(k)
+      const keyOrWrapped = this.fromBase64Url(k)
       const salt = this.fromBase64Url(s)
-      if (key.length !== KEY_LENGTH || salt.length !== SALT_LENGTH) return null
-      return { key, salt }
+      if (keyOrWrapped.length !== KEY_LENGTH || salt.length !== SALT_LENGTH) return null
+      const psParam = params.get('ps')
+      let passphraseSalt: Uint8Array | null = null
+      if (psParam) {
+        passphraseSalt = this.fromBase64Url(psParam)
+        if (passphraseSalt.length !== this.PBKDF2_SALT_LENGTH) return null
+      }
+      return { keyOrWrapped, salt, passphraseSalt }
     } catch {
       return null
     }
