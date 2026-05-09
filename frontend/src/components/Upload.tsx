@@ -154,30 +154,21 @@ const UploadPage: React.FC = () => {
 
       setState(prev => ({ ...prev, progress: 70 }))
 
-      const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2)
-      async function* generateMultipartBody() {
-        yield new TextEncoder().encode(
-          `--${boundary}\r\nContent-Disposition: form-data; name="retentionHours"\r\n\r\n${state.retentionHours}\r\n`
-        )
-        yield new TextEncoder().encode(
-          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileToUpload.name}"\r\nContent-Type: application/octet-stream\r\n\r\n`
-        )
-        for (const chunk of encryptedChunks) yield chunk
-        yield new TextEncoder().encode(`\r\n--${boundary}--\r\n`)
-      }
-      const stream = new ReadableStream({
-        async start(controller) {
-          for await (const chunk of generateMultipartBody()) controller.enqueue(chunk)
-          controller.close()
-        },
+      // Encrypted chunks are already fully in memory at this point, so the
+      // previous ReadableStream/duplex:'half' approach gave no real streaming
+      // benefit while requiring HTTP/2 (Chrome restriction). FormData over
+      // HTTP/1.1 is functionally identical and broadly compatible.
+      const encryptedBlob = new Blob(encryptedChunks as unknown as BlobPart[], {
+        type: 'application/octet-stream',
       })
+      const formData = new FormData()
+      formData.append('retentionHours', String(state.retentionHours))
+      formData.append('file', encryptedBlob, fileToUpload.name)
+
       const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
-        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-        body: stream,
-        // @ts-ignore — duplex required for streaming, not yet in TS types
-        duplex: 'half',
-      } as RequestInit)
+        body: formData,
+      })
       if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
       const response = await uploadResponse.json()
 
