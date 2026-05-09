@@ -83,6 +83,67 @@ export class FileManagerV2 {
   }
 
   /**
+   * Store an encrypted file from a path on the local filesystem (e.g. multer's
+   * diskStorage temp file). Avoids buffering the upload in RAM — the storage
+   * provider moves the file via rename. Source file is consumed on success.
+   */
+  async storeFileFromPath(
+    sourcePath: string,
+    fileSize: number,
+    filename: string,
+    contentType: string,
+    retentionHours: number = config.retention.defaultRetentionHours,
+    maxDownloads?: number,
+    uploaderIP?: string,
+    userAgent?: string
+  ): Promise<FileMetadata> {
+    const fileId = uuidv4();
+    const expiresAt = new Date(Date.now() + (retentionHours * 60 * 60 * 1000));
+
+    const storagePath = await this.storageManager.storeFromPath(
+      sourcePath,
+      filename,
+      {
+        fileId,
+        contentType,
+        originalFilename: filename,
+        uploadDate: new Date(),
+        expiresAt
+      }
+    );
+
+    const metadataToEncrypt: FileMetadataToEncrypt = {
+      originalFilename: filename,
+      contentType,
+      uploadTimestamp: new Date(),
+      uploaderIP,
+      userAgent,
+      fileSize,
+      retentionHours
+    };
+
+    const encryptedMetadata = MetadataEncryption.encryptMetadata(metadataToEncrypt);
+    const serializedMetadata = MetadataEncryption.serializeEncryptedMetadata(encryptedMetadata);
+
+    const createData: CreateFileData = {
+      filename: `encrypted_${fileId}`,
+      originalSize: fileSize,
+      encryptedSize: fileSize,
+      contentType: 'application/octet-stream',
+      storagePath,
+      storageProvider: config.storage.provider,
+      expiresAt,
+      maxDownloads,
+      encryptedMetadata: serializedMetadata
+    };
+
+    const fileMetadata = await this.fileRepository.create(createData);
+
+    console.log(`📁 File stored from path: ${fileId} (${fileSize} bytes, encrypted metadata) - expires ${expiresAt.toISOString()}`);
+    return fileMetadata;
+  }
+
+  /**
    * Get file metadata by ID
    */
   async getMetadata(fileId: string): Promise<FileMetadata | null> {

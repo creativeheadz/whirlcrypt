@@ -89,6 +89,10 @@ export class StorageManager {
     return this.defaultProvider.store(data, filename, metadata);
   }
 
+  async storeFromPath(sourcePath: string, filename: string, metadata?: any): Promise<string> {
+    return this.defaultProvider.storeFromPath(sourcePath, filename, metadata);
+  }
+
   async retrieve(storagePath: string): Promise<Buffer> {
     return this.defaultProvider.retrieve(storagePath);
   }

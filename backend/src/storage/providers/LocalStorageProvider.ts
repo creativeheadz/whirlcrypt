@@ -78,6 +78,58 @@ export class LocalStorageProvider implements StorageProvider {
     return storagePath;
   }
 
+  async storeFromPath(sourcePath: string, filename: string, metadata?: StorageMetadata): Promise<string> {
+    if (!this.config) {
+      throw new Error('Storage provider not initialized');
+    }
+
+    const fileId = metadata?.fileId || uuidv4();
+    const subdir = this.config.createSubdirs ? this.generateSubdirectory(fileId) : '';
+    const safeFilename = this.sanitizeFilename(filename);
+    const storagePath = join(subdir, `${fileId}-${safeFilename}`);
+    const fullPath = join(this.basePath, storagePath);
+
+    const dirPath = dirname(fullPath);
+    try {
+      await fs.access(dirPath);
+    } catch {
+      await fs.mkdir(dirPath, {
+        recursive: true,
+        mode: parseInt(this.config.permissions!, 8),
+      });
+    }
+
+    // Atomic rename when source and destination are on the same filesystem.
+    // Falls back to copy+unlink across filesystems (EXDEV).
+    try {
+      await fs.rename(sourcePath, fullPath);
+    } catch (err: any) {
+      if (err?.code === 'EXDEV') {
+        await fs.copyFile(sourcePath, fullPath);
+        await fs.unlink(sourcePath);
+      } else {
+        throw err;
+      }
+    }
+
+    if (metadata) {
+      const stats = await fs.stat(fullPath);
+      const metadataPath = `${fullPath}.meta`;
+      const metadataContent = JSON.stringify(
+        {
+          ...metadata,
+          storedAt: new Date().toISOString(),
+          originalSize: stats.size,
+        },
+        null,
+        2,
+      );
+      await fs.writeFile(metadataPath, metadataContent, 'utf8');
+    }
+
+    return storagePath;
+  }
+
   async retrieve(storagePath: string): Promise<Buffer> {
     if (!this.config) {
       throw new Error('Storage provider not initialized');

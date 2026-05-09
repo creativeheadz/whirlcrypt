@@ -57,6 +57,58 @@ export class FileManager {
   }
 
   /**
+   * Store an encrypted file from an existing path (e.g. multer's diskStorage
+   * temp file). Avoids buffering the upload in RAM. Source file is consumed
+   * on success via rename (with cross-fs copy+unlink fallback).
+   * Extra V2-only parameters (maxDownloads/uploaderIP/userAgent) are accepted
+   * for signature compatibility but not stored by this legacy provider.
+   */
+  async storeFileFromPath(
+    sourcePath: string,
+    fileSize: number,
+    originalFilename: string,
+    contentType: string,
+    retentionHours?: number,
+    _maxDownloads?: number,
+    _uploaderIP?: string,
+    _userAgent?: string
+  ): Promise<FileMetadata> {
+    const fileId = uuidv4();
+    const uploadDate = new Date();
+    const expiresAt = new Date(
+      uploadDate.getTime() +
+      (retentionHours || config.retention.defaultRetentionHours) * 60 * 60 * 1000
+    );
+
+    const metadata: FileMetadata = {
+      id: fileId,
+      filename: originalFilename,
+      size: fileSize,
+      contentType,
+      uploadDate,
+      expiresAt,
+      downloadCount: 0
+    };
+
+    const filePath = join(this.uploadDir, fileId);
+    try {
+      await fs.rename(sourcePath, filePath);
+    } catch (err: any) {
+      if (err?.code === 'EXDEV') {
+        await fs.copyFile(sourcePath, filePath);
+        await fs.unlink(sourcePath);
+      } else {
+        throw err;
+      }
+    }
+
+    const metadataPath = join(this.uploadDir, fileId + FileManager.METADATA_EXT);
+    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+
+    return metadata;
+  }
+
+  /**
    * Retrieve file metadata
    */
   async getMetadata(fileId: string): Promise<FileMetadata | null> {

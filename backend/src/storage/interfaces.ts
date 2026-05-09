@@ -11,6 +11,14 @@ export interface StorageProvider {
    * Store a file and return the storage path
    */
   store(data: Buffer, filename: string, metadata?: StorageMetadata): Promise<string>;
+
+  /**
+   * Store a file by moving it from a source path on the local filesystem.
+   * Avoids buffering the entire file in memory — used for large uploads
+   * that multer has already written to a temp location on disk.
+   * Implementations should consume (move/delete) the source file on success.
+   */
+  storeFromPath(sourcePath: string, filename: string, metadata?: StorageMetadata): Promise<string>;
   
   /**
    * Retrieve a file by its storage path
