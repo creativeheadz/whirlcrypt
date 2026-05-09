@@ -125,18 +125,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <span aria-hidden>·</span>
             <span>Zero server decryption</span>
           </div>
-          <Link
-            to="/security"
+          <a
+            href="https://oldforge.tech"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-ink-faint hover:text-ember transition-colors"
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
               letterSpacing: '0.16em',
               textTransform: 'uppercase',
+              borderBottom: 'none',
             }}
           >
             Forged in the Old Forge
-          </Link>
+          </a>
         </div>
       </footer>
     </div>
