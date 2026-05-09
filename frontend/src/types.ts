@@ -42,7 +42,9 @@ export interface ECEHeader {
   keyId: Uint8Array;
 }
 
-export const DEFAULT_RECORD_SIZE = 4096;
+// RFC 8188 record size. This is the size of an *encrypted* record on the wire,
+// including the 16-byte AES-GCM authentication tag (RFC 8188 §2.1).
+export const DEFAULT_RECORD_SIZE = 65536;
 export const SALT_LENGTH = 16;
 export const KEY_LENGTH = 16;
 export const KEYID_LENGTH = 1;

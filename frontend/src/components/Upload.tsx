@@ -167,6 +167,16 @@ const UploadPage: React.FC = () => {
 
       const { key, salt } = await ClientCrypto.generateKeys()
 
+      // Filename + MIME type travel inside the encrypted envelope; the server
+      // sees only opaque ciphertext. The on-disk encrypted blob is uploaded
+      // under a generic name so it can't even be inferred from the multipart
+      // headers.
+      const envelopeMetadata = {
+        filename:    fileToUpload.name,
+        contentType: fileToUpload.type || 'application/octet-stream',
+      }
+      const opaqueUploadName = 'whirlcrypt.bin'
+
       let response: { id: string; downloadUrl: string; expiresAt: string }
 
       if (supportsRequestStreams) {
@@ -182,10 +192,10 @@ const UploadPage: React.FC = () => {
                 `--${boundary}\r\nContent-Disposition: form-data; name="retentionHours"\r\n\r\n${state.retentionHours}\r\n`
               ))
               controller.enqueue(encoder.encode(
-                `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileToUpload.name}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+                `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${opaqueUploadName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
               ))
               for await (const chunk of ClientCrypto.encryptFileStream(
-                fileToUpload, key, salt, 65536,
+                fileToUpload, envelopeMetadata, key, salt, 65536,
                 (progress) => setState(prev => ({ ...prev, progress: 30 + (progress * 0.65) }))
               )) {
                 controller.enqueue(chunk)
@@ -212,7 +222,7 @@ const UploadPage: React.FC = () => {
         // Encrypts to memory, then uploads via FormData. RAM = file size.
         const encryptedChunks: Uint8Array[] = []
         for await (const chunk of ClientCrypto.encryptFileStream(
-          fileToUpload, key, salt, 65536,
+          fileToUpload, envelopeMetadata, key, salt, 65536,
           (progress) => setState(prev => ({ ...prev, progress: 30 + (progress * 0.4) }))
         )) {
           encryptedChunks.push(chunk)
@@ -224,7 +234,7 @@ const UploadPage: React.FC = () => {
         })
         const formData = new FormData()
         formData.append('retentionHours', String(state.retentionHours))
-        formData.append('file', encryptedBlob, fileToUpload.name)
+        formData.append('file', encryptedBlob, opaqueUploadName)
 
         const uploadResponse = await fetch('/api/upload', {
           method: 'POST',
@@ -238,8 +248,7 @@ const UploadPage: React.FC = () => {
         response.id,
         key,
         salt,
-        window.location.origin,
-        fileToUpload.name
+        window.location.origin
       )
 
       setState(prev => ({ ...prev, uploading: false, progress: 100, zipProgress: 0, shareUrl, error: null }))

@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock } from 'lucide-react'
-import { ClientCrypto } from '../crypto/rfc8188'
+import { ClientCrypto, EnvelopeMetadata } from '../crypto/rfc8188'
 import axios from 'axios'
 
 interface FileInfo {
   filename: string
   size: number
   contentType: string
-  uploadDate: string
-  expiresAt: string
-  downloadCount: number
 }
 
 interface DownloadState {
@@ -36,7 +33,10 @@ const Download: React.FC = () => {
   useEffect(() => {
     const keys = ClientCrypto.extractKeysFromUrl()
     if (!keys) {
-      setState(prev => ({ ...prev, error: 'Invalid download link — missing encryption keys.' }))
+      setState(prev => ({
+        ...prev,
+        error: 'Invalid or outdated download link — missing encryption keys.',
+      }))
       return
     }
     setState(prev => ({ ...prev, keys }))
@@ -47,54 +47,66 @@ const Download: React.FC = () => {
     setState(prev => ({ ...prev, downloading: true, progress: 0, error: null }))
 
     try {
-      const fragment = window.location.hash.substring(1)
-      const params = new URLSearchParams(fragment)
-      const keyHex = params.get('key')
-      if (!keyHex) throw new Error('Missing encryption key in URL')
-
-      const filename = params.get('filename') || `decrypted-file-${id.substring(0, 8)}`
-
-      const response = await fetch(`/api/download/${id}`, {
-        headers: { 'x-encryption-key': keyHex },
-      })
-
+      const response = await fetch(`/api/download/${id}`)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
       if (!response.body) throw new Error('Response body is not available')
 
-      let fileWriter: any = null
+      // We don't know the filename until decryption emits the metadata header,
+      // so we buffer the first chunks in memory and decide where to send the
+      // rest once metadata arrives.
+      let metadata: EnvelopeMetadata | null = null
+      let fileWriter: any = null   // FileSystemWritableFileStream when supported
       const blobParts: Uint8Array[] = []
       let receivedBytes = 0
 
       const useFileSystemAPI = 'showSaveFilePicker' in window
-      if (useFileSystemAPI) {
-        try {
-          const handle = await (window as any).showSaveFilePicker({
-            suggestedName: filename,
-            types: [{ description: 'File', accept: { 'application/octet-stream': ['.*'] } }],
-          })
-          fileWriter = await handle.createWritable()
-        } catch (e: any) {
-          if (e?.name === 'AbortError') throw e
-        }
-      }
 
-      await ClientCrypto.decryptStreamToSink(
+      await ClientCrypto.decryptEnvelopeToSink(
         response.body,
         state.keys.key,
         state.keys.salt,
         {
-          onChunk: async (chunk: Uint8Array) => {
+          onMetadata: async (m) => {
+            metadata = m
+            if (useFileSystemAPI) {
+              try {
+                const handle = await (window as any).showSaveFilePicker({
+                  suggestedName: m.filename,
+                  types: [{
+                    description: m.contentType || 'File',
+                    accept: { [m.contentType || 'application/octet-stream']: ['.*'] },
+                  }],
+                })
+                fileWriter = await handle.createWritable()
+              } catch (e: any) {
+                if (e?.name === 'AbortError') throw e
+                // Picker not available or user dismissed — fall back to in-memory blob
+              }
+            }
+            // reveal filename in the UI as soon as we have it
+            setState(prev => ({
+              ...prev,
+              fileInfo: { filename: m.filename, size: 0, contentType: m.contentType },
+            }))
+          },
+          onChunk: async (chunk) => {
             receivedBytes += chunk.length
-            if (fileWriter) await fileWriter.write(chunk)
-            else blobParts.push(chunk)
+            if (fileWriter) {
+              await fileWriter.write(chunk)
+            } else {
+              blobParts.push(chunk)
+            }
           },
           onComplete: async () => {
-            if (fileWriter) await fileWriter.close()
-            else {
-              const finalBlob = new Blob(blobParts, { type: 'application/octet-stream' })
+            if (fileWriter) {
+              await fileWriter.close()
+            } else {
+              const filename = metadata?.filename ?? `decrypted-file-${id?.substring(0, 8)}`
+              const contentType = metadata?.contentType || 'application/octet-stream'
+              const finalBlob = new Blob(blobParts, { type: contentType })
               const url = URL.createObjectURL(finalBlob)
               const a = document.createElement('a')
               a.href = url
@@ -112,19 +124,15 @@ const Download: React.FC = () => {
         }
       )
 
+      const filename = metadata?.filename ?? `decrypted-file-${id?.substring(0, 8)}`
+      const contentType = metadata?.contentType || 'application/octet-stream'
+
       setState(prev => ({
         ...prev,
         downloading: false,
         progress: 100,
         downloaded: true,
-        fileInfo: {
-          filename,
-          size: receivedBytes,
-          contentType: 'application/octet-stream',
-          uploadDate: new Date().toISOString(),
-          expiresAt: new Date().toISOString(),
-          downloadCount: 0,
-        },
+        fileInfo: { filename, size: receivedBytes, contentType },
       }))
     } catch (error) {
       console.error('Download error:', error)
@@ -132,9 +140,15 @@ const Download: React.FC = () => {
       if (axios.isAxiosError(error)) {
         errorMessage = error.response?.data?.error || `HTTP ${error.response?.status}: ${error.message}`
       } else if (error instanceof Error) {
-        if (error.message.includes('Decryption failed')) errorMessage = `Decryption error: ${error.message}`
-        else if (error.message.includes('Invalid encrypted data')) errorMessage = `File corruption: ${error.message}`
-        else errorMessage = `Processing error: ${error.message}`
+        if (error.message.includes('salt mismatch') || error.message.includes('OperationError')) {
+          errorMessage = 'Decryption failed — the link is from a different file or has been tampered with.'
+        } else if (error.message.includes('delimiter')) {
+          errorMessage = `Decryption failed — record format invalid: ${error.message}`
+        } else if (error.message.includes('metadata')) {
+          errorMessage = `Decryption succeeded but metadata header is corrupt: ${error.message}`
+        } else {
+          errorMessage = error.message
+        }
       }
       setState(prev => ({ ...prev, downloading: false, progress: 0, error: errorMessage }))
     }
@@ -158,7 +172,7 @@ const Download: React.FC = () => {
         <h1 className="display">An envelope, addressed to whoever holds this link.</h1>
         <p className="max-w-2xl text-ink-soft" style={{ fontSize: 13, lineHeight: 1.65 }}>
           The bytes on the server are sealed. Decryption happens in your browser, with the key carried
-          only in the URL fragment. The metadata below appears after a successful decrypt — by design.
+          only in the URL fragment. The filename and type appear once decryption confirms the link is intact.
         </p>
       </header>
 
@@ -203,7 +217,7 @@ const Download: React.FC = () => {
           {state.downloading && (
             <div className="mt-5">
               <div className="flex justify-between folio mb-1">
-                <span>Decrypting</span>
+                <span>Decrypting{state.fileInfo ? ` · ${state.fileInfo.filename}` : ''}</span>
                 <span>{Math.round(state.progress)}%</span>
               </div>
               <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
@@ -229,7 +243,7 @@ const Download: React.FC = () => {
             </div>
             <div className="flex-1 space-y-2">
               <div className="font-display italic text-xl">{state.fileInfo.filename}</div>
-              <div className="folio">{formatFileSize(state.fileInfo.size)}</div>
+              <div className="folio">{formatFileSize(state.fileInfo.size)} · {state.fileInfo.contentType}</div>
             </div>
           </div>
           <div className="mt-5 strip strip-success">
@@ -256,6 +270,7 @@ const Download: React.FC = () => {
             <ul className="text-ink-soft space-y-1" style={{ fontSize: 13, listStyle: 'none', paddingLeft: 0 }}>
               <li>· The file expired or was deleted.</li>
               <li>· The link is corrupt or shortened past its fragment.</li>
+              <li>· The link is from before today's wire-format upgrade — please re-share.</li>
               <li>· The encryption key is missing or wrong.</li>
             </ul>
           </div>
@@ -269,6 +284,7 @@ const Download: React.FC = () => {
           <dt>Cipher</dt>        <dd>AES-128-GCM, RFC 8188 record stream</dd>
           <dt>Decrypt</dt>       <dd>In your browser, never on the server</dd>
           <dt>Key transit</dt>   <dd>URL fragment — not transmitted in HTTP</dd>
+          <dt>Filename</dt>      <dd>Sealed inside the envelope, revealed on decrypt</dd>
           <dt>Expiry</dt>        <dd>Auto-purge after retention window</dd>
         </dl>
       </section>
