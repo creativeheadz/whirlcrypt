@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { FileText, Lock, Share2, AlertCircle, CheckCircle2, Copy, Folder, FolderOpen, Clock } from 'lucide-react'
+import { FileText, Lock, Share2, AlertCircle, CheckCircle2, Copy, Folder, FolderOpen, Clock, Loader2 } from 'lucide-react'
 import { ClientCrypto } from '../crypto/rfc8188'
 import JSZip from 'jszip'
 import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
+
+type UploadPhase = 'idle' | 'compressing' | 'encrypting' | 'awaiting-server' | 'done'
 
 // Feature-detect support for fetch with a ReadableStream body + duplex:'half'.
 // Required for streaming uploads (RAM stays at ~one chunk regardless of file
@@ -34,6 +36,7 @@ interface UploadState {
   uploading: boolean
   progress: number
   zipProgress: number
+  phase: UploadPhase
   error: string | null
   shareUrl: string | null
   retentionHours: number
@@ -48,6 +51,7 @@ const UploadPage: React.FC = () => {
     uploading: false,
     progress: 0,
     zipProgress: 0,
+    phase: 'idle',
     error: null,
     shareUrl: null,
     retentionHours: 24,
@@ -149,7 +153,8 @@ const UploadPage: React.FC = () => {
 
   const handleUpload = async () => {
     if (!state.file && !state.files) return
-    setState(prev => ({ ...prev, uploading: true, progress: 0, zipProgress: 0, error: null }))
+    const initialPhase: UploadPhase = state.isFolder ? 'compressing' : 'encrypting'
+    setState(prev => ({ ...prev, uploading: true, progress: 0, zipProgress: 0, phase: initialPhase, error: null }))
     try {
       let fileToUpload: File
       if (state.files && state.isFolder) {
@@ -157,7 +162,7 @@ const UploadPage: React.FC = () => {
         fileToUpload = await createZipFromFiles(state.files, (zipProgress) =>
           setState(prev => ({ ...prev, zipProgress, progress: 5 + (zipProgress * 0.25) }))
         )
-        setState(prev => ({ ...prev, progress: 30, zipProgress: 100 }))
+        setState(prev => ({ ...prev, progress: 30, zipProgress: 100, phase: 'encrypting' }))
       } else if (state.file) {
         fileToUpload = state.file
         setState(prev => ({ ...prev, progress: 5 }))
@@ -202,6 +207,10 @@ const UploadPage: React.FC = () => {
               }
               controller.enqueue(encoder.encode(`\r\n--${boundary}--\r\n`))
               controller.close()
+              // Encryption + body queueing complete; the network may still be
+              // pushing bytes and the server is processing them. Switch to an
+              // indeterminate phase so the UI stops looking frozen at 95%.
+              setState(prev => ({ ...prev, phase: 'awaiting-server' }))
             } catch (e) {
               controller.error(e)
             }
@@ -236,6 +245,9 @@ const UploadPage: React.FC = () => {
         formData.append('retentionHours', String(state.retentionHours))
         formData.append('file', encryptedBlob, opaqueUploadName)
 
+        // Encryption is done; from here we're at the network's mercy.
+        setState(prev => ({ ...prev, phase: 'awaiting-server' }))
+
         const uploadResponse = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
@@ -251,14 +263,14 @@ const UploadPage: React.FC = () => {
         window.location.origin
       )
 
-      setState(prev => ({ ...prev, uploading: false, progress: 100, zipProgress: 0, shareUrl, error: null }))
+      setState(prev => ({ ...prev, uploading: false, progress: 100, zipProgress: 0, phase: 'done', shareUrl, error: null }))
       showSuccess(state.isFolder ? 'Folder uploaded' : 'File uploaded', 'Encrypted and ready to share.')
     } catch (error) {
       console.error('Upload error:', error)
       const errorMessage = axios.isAxiosError(error)
         ? error.response?.data?.error || 'Upload failed'
         : error instanceof Error ? error.message : 'Upload failed'
-      setState(prev => ({ ...prev, uploading: false, progress: 0, zipProgress: 0, error: errorMessage }))
+      setState(prev => ({ ...prev, uploading: false, progress: 0, zipProgress: 0, phase: 'idle', error: errorMessage }))
       showError('Upload failed', errorMessage)
     }
   }
@@ -288,12 +300,6 @@ const UploadPage: React.FC = () => {
   ]
 
   const hasSelection = !!(state.file || state.files)
-
-  const phaseLabel = state.progress < 30 && state.isFolder
-    ? 'Compressing'
-    : state.progress < 70
-    ? 'Encrypting'
-    : 'Uploading'
 
   return (
     <div className="space-y-10">
@@ -411,7 +417,7 @@ const UploadPage: React.FC = () => {
         {/* Progress readout */}
         {state.uploading && (
           <div className="mt-6 space-y-4">
-            {state.isFolder && state.zipProgress > 0 && state.zipProgress < 100 && (
+            {state.phase === 'compressing' && (
               <div>
                 <div className="flex justify-between folio mb-1">
                   <span>Compressing folder</span>
@@ -420,13 +426,32 @@ const UploadPage: React.FC = () => {
                 <div className="gauge"><div className="gauge-fill" style={{ width: `${state.zipProgress}%` }} /></div>
               </div>
             )}
-            <div>
-              <div className="flex justify-between folio mb-1">
-                <span>{phaseLabel}</span>
-                <span>{Math.round(state.progress)}%</span>
+
+            {state.phase === 'encrypting' && (
+              <div>
+                <div className="flex justify-between folio mb-1">
+                  <span>Encrypting &amp; uploading</span>
+                  <span>{Math.round(state.progress)}%</span>
+                </div>
+                <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
               </div>
-              <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
-            </div>
+            )}
+
+            {state.phase === 'awaiting-server' && (
+              <div>
+                <div className="flex justify-between folio mb-1 items-center">
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Sealing in the vault — pushing bytes to the server
+                  </span>
+                  <span>···</span>
+                </div>
+                <div className="gauge"><div className="gauge-fill gauge-pulse" style={{ width: '95%' }} /></div>
+                <div className="folio mt-1 text-ink-faint" style={{ fontSize: 10 }}>
+                  Slow link? This stays here until the server confirms the file is stored. Don&apos;t close the tab.
+                </div>
+              </div>
+            )}
           </div>
         )}
 

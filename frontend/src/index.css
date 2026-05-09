@@ -365,6 +365,22 @@
     transition: width 200ms ease;
     box-shadow: 0 0 8px var(--ember-glow);
   }
+  /* Indeterminate-ish state — subtle horizontal shimmer signalling that
+     work is still happening even though the bar isn't advancing. */
+  @keyframes gauge-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .gauge-fill.gauge-pulse {
+    background: linear-gradient(90deg,
+      var(--ember-soft) 0%,
+      var(--ember)      45%,
+      #ffd9a8           50%,
+      var(--ember)      55%,
+      var(--ember-soft) 100%);
+    background-size: 200% 100%;
+    animation: gauge-shimmer 2.4s linear infinite;
+  }
 
   /* ---------- Tabular telemetry ---------- */
   .telem {
