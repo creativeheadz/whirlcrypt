@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
-import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock, KeyRound } from 'lucide-react'
+import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock, KeyRound, Fingerprint, ShieldAlert } from 'lucide-react'
 import { ClientCrypto, EnvelopeMetadata } from '../crypto/rfc8188'
+import { verifyAttestation, fingerprint as computeFingerprint } from '../crypto/identity'
 import axios from 'axios'
+
+type AttestationStatus = 'none' | 'verifying' | 'valid' | 'invalid'
 
 interface FileInfo {
   filename: string
@@ -25,6 +28,10 @@ interface DownloadState {
   passphrase: string
   passphraseError: string | null
 
+  // sender attestation
+  attestationStatus: AttestationStatus
+  senderFingerprint: string | null
+
   downloaded: boolean
 }
 
@@ -40,6 +47,8 @@ const Download: React.FC = () => {
     passphraseSalt: null,
     passphrase: '',
     passphraseError: null,
+    attestationStatus: 'none',
+    senderFingerprint: null,
     downloaded: false,
   })
 
@@ -57,7 +66,27 @@ const Download: React.FC = () => {
       keyOrWrapped: parsed.keyOrWrapped,
       salt: parsed.salt,
       passphraseSalt: parsed.passphraseSalt,
+      attestationStatus: parsed.attestation ? 'verifying' : 'none',
     }))
+
+    if (parsed.attestation && id) {
+      const att = parsed.attestation
+      ;(async () => {
+        try {
+          const [valid, fp] = await Promise.all([
+            verifyAttestation(id, att.pubkey, att.signature),
+            computeFingerprint(att.pubkey),
+          ])
+          setState(prev => ({
+            ...prev,
+            attestationStatus: valid ? 'valid' : 'invalid',
+            senderFingerprint: valid ? fp : null,
+          }))
+        } catch {
+          setState(prev => ({ ...prev, attestationStatus: 'invalid', senderFingerprint: null }))
+        }
+      })()
+    }
   }, [id])
 
   const handleDownload = async () => {
@@ -251,9 +280,34 @@ const Download: React.FC = () => {
             </div>
             <div className="flex-1 space-y-2">
               <div className="font-display italic text-xl">Sealed file ready.</div>
-              <div className="folio">
-                ID · {id.substring(0, 8)}…
-                {passphraseRequired && <span className="ml-3" style={{ color: 'var(--ember)' }}>· passphrase required</span>}
+              <div className="folio space-y-0.5">
+                <div>
+                  ID · {id.substring(0, 8)}…
+                  {passphraseRequired && <span className="ml-3" style={{ color: 'var(--ember)' }}>· passphrase required</span>}
+                </div>
+                {state.attestationStatus !== 'none' && (
+                  <div className="flex items-center gap-2 mt-1">
+                    {state.attestationStatus === 'verifying' && (
+                      <span className="text-ink-faint">verifying signature…</span>
+                    )}
+                    {state.attestationStatus === 'valid' && state.senderFingerprint && (
+                      <>
+                        <Fingerprint className="h-3 w-3" style={{ color: 'var(--green)' }} />
+                        <span style={{ color: 'var(--green)' }}>
+                          Signed by · {state.senderFingerprint}
+                        </span>
+                      </>
+                    )}
+                    {state.attestationStatus === 'invalid' && (
+                      <>
+                        <ShieldAlert className="h-3 w-3" style={{ color: 'var(--red)' }} />
+                        <span style={{ color: 'var(--red)' }}>
+                          signature did NOT verify — this attestation is forged or corrupt
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <p className="text-ink-soft" style={{ fontSize: 13 }}>
                 {passphraseRequired
@@ -382,6 +436,12 @@ const Download: React.FC = () => {
             <>
               <dt>Passphrase KDF</dt>
               <dd>PBKDF2-SHA256, 600 000 iterations</dd>
+            </>
+          )}
+          {state.attestationStatus !== 'none' && (
+            <>
+              <dt>Attestation</dt>
+              <dd>Ed25519 signature over the file ID + sender pubkey</dd>
             </>
           )}
           <dt>Expiry</dt>        <dd>Auto-purge after retention window</dd>

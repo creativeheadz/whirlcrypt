@@ -484,27 +484,36 @@ export class ClientCrypto {
    * Build a share URL. Key + salt go in the fragment (never sent to the
    * server). Filename and content-type are inside the encrypted envelope.
    *
-   * Without passphrase:  `#v=2&k=<key>&s=<salt>`
-   * With passphrase:     `#v=2&k=<wrapped>&s=<salt>&ps=<passphrase_salt>`
-   *                      (presence of `ps` signals "needs passphrase")
+   *   #v=2&k=<key>&s=<salt>                       — open
+   *   #v=2&k=<wrapped>&s=<salt>&ps=<pp_salt>      — passphrase-locked
+   *   #v=2&k=...&s=...&pk=<pubkey>&sig=<sig>      — sender-attested
+   *
+   * The flags compose: a link can be both passphrase-locked and attested.
    */
   static async generateShareUrl(
     fileId: string,
     key: Uint8Array,
     salt: Uint8Array,
     baseUrl: string,
-    passphrase?: string,
+    options?: {
+      passphrase?: string
+      attestation?: { pubkey: Uint8Array; signature: Uint8Array }
+    },
   ): Promise<string> {
     let kBytes = key
-    let psFrag = ''
-    if (passphrase && passphrase.length > 0) {
-      const { wrapped, passphraseSalt } = await this.wrapKeyWithPassphrase(key, passphrase)
+    let extra = ''
+    if (options?.passphrase && options.passphrase.length > 0) {
+      const { wrapped, passphraseSalt } = await this.wrapKeyWithPassphrase(key, options.passphrase)
       kBytes = wrapped
-      psFrag = `&ps=${this.toBase64Url(passphraseSalt)}`
+      extra += `&ps=${this.toBase64Url(passphraseSalt)}`
+    }
+    if (options?.attestation) {
+      extra += `&pk=${this.toBase64Url(options.attestation.pubkey)}`
+      extra += `&sig=${this.toBase64Url(options.attestation.signature)}`
     }
     const k = this.toBase64Url(kBytes)
     const s = this.toBase64Url(salt)
-    return `${baseUrl}/download/${fileId}#v=2&k=${k}&s=${s}${psFrag}`
+    return `${baseUrl}/download/${fileId}#v=2&k=${k}&s=${s}${extra}`
   }
 
   /**
@@ -519,6 +528,7 @@ export class ClientCrypto {
     keyOrWrapped: Uint8Array
     salt: Uint8Array
     passphraseSalt: Uint8Array | null
+    attestation: { pubkey: Uint8Array; signature: Uint8Array } | null
   } | null {
     const fragment = window.location.hash.substring(1)
     const params = new URLSearchParams(fragment)
@@ -536,7 +546,17 @@ export class ClientCrypto {
         passphraseSalt = this.fromBase64Url(psParam)
         if (passphraseSalt.length !== this.PBKDF2_SALT_LENGTH) return null
       }
-      return { keyOrWrapped, salt, passphraseSalt }
+      const pkParam  = params.get('pk')
+      const sigParam = params.get('sig')
+      let attestation: { pubkey: Uint8Array; signature: Uint8Array } | null = null
+      if (pkParam && sigParam) {
+        const pubkey = this.fromBase64Url(pkParam)
+        const signature = this.fromBase64Url(sigParam)
+        if (pubkey.length === 32 && signature.length === 64) {
+          attestation = { pubkey, signature }
+        }
+      }
+      return { keyOrWrapped, salt, passphraseSalt, attestation }
     } catch {
       return null
     }

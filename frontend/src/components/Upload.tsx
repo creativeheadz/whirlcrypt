@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { FileText, Lock, Share2, AlertCircle, CheckCircle2, Copy, Folder, FolderOpen, Clock, Loader2 } from 'lucide-react'
+import { FileText, Lock, Share2, AlertCircle, CheckCircle2, Copy, Folder, FolderOpen, Clock, Loader2, Fingerprint } from 'lucide-react'
 import { ClientCrypto } from '../crypto/rfc8188'
+import { loadOrCreateSenderIdentity, loadSenderIdentity, signAttestation, fingerprint } from '../crypto/identity'
 import JSZip from 'jszip'
 import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
@@ -44,6 +45,8 @@ interface UploadState {
   passphraseEnabled: boolean
   passphrase: string
   passphraseConfirm: string
+  signingEnabled: boolean
+  myFingerprint: string | null
   isFolder: boolean
   folderName: string | null
 }
@@ -63,9 +66,24 @@ const UploadPage: React.FC = () => {
     passphraseEnabled: false,
     passphrase: '',
     passphraseConfirm: '',
+    signingEnabled: false,
+    myFingerprint: null,
     isFolder: false,
     folderName: null,
   })
+
+  // If a sender identity already exists in localStorage, surface its
+  // fingerprint up-front so the user knows what their recipients will see.
+  useEffect(() => {
+    let cancelled = false
+    loadSenderIdentity().then(async (id) => {
+      if (id && !cancelled) {
+        const fp = await fingerprint(id.pubkey)
+        if (!cancelled) setState(prev => ({ ...prev, myFingerprint: fp }))
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
   const [copied, setCopied] = useState(false)
   const { showError, showSuccess, showInfo } = useToast()
 
@@ -282,12 +300,25 @@ const UploadPage: React.FC = () => {
         response = await uploadResponse.json()
       }
 
+      let attestation: { pubkey: Uint8Array; signature: Uint8Array } | undefined
+      if (state.signingEnabled) {
+        const identity = await loadOrCreateSenderIdentity()
+        const signature = await signAttestation(identity, response.id)
+        attestation = { pubkey: identity.pubkey, signature }
+        // Update fingerprint state in case the identity was created just now.
+        const fp = await fingerprint(identity.pubkey)
+        setState(prev => ({ ...prev, myFingerprint: fp }))
+      }
+
       const shareUrl = await ClientCrypto.generateShareUrl(
         response.id,
         key,
         salt,
         window.location.origin,
-        state.passphraseEnabled ? state.passphrase : undefined,
+        {
+          passphrase: state.passphraseEnabled ? state.passphrase : undefined,
+          attestation,
+        },
       )
 
       setState(prev => ({ ...prev, uploading: false, progress: 100, zipProgress: 0, phase: 'done', shareUrl, error: null }))
@@ -520,6 +551,37 @@ const UploadPage: React.FC = () => {
                 </div>
               </div>
             )}
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={state.signingEnabled}
+                disabled={state.uploading}
+                onChange={e => setState(prev => ({ ...prev, signingEnabled: e.target.checked }))}
+                className="mt-1 h-3.5 w-3.5 cursor-pointer"
+                style={{ accentColor: 'var(--ember)' }}
+              />
+              <span>
+                <span className="folio block flex items-center gap-2">
+                  <Fingerprint className="h-3 w-3" />
+                  Attach my identity
+                </span>
+                <span className="block text-ink-faint mt-1" style={{ fontSize: 11, lineHeight: 1.5 }}>
+                  Signs an Ed25519 attestation over the file ID with a long-lived keypair stored
+                  in this browser. Recipients see your public-key fingerprint and can pin it to
+                  recognise future links from the same identity. Verifiable, but only meaningful
+                  once the recipient has confirmed your fingerprint out-of-band.
+                </span>
+                {state.myFingerprint && (
+                  <span
+                    className="block mt-2 font-mono"
+                    style={{ fontSize: 11, color: 'var(--ember)' }}
+                  >
+                    Your fingerprint · {state.myFingerprint}
+                  </span>
+                )}
+              </span>
+            </label>
           </div>
         )}
 
