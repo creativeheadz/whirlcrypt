@@ -6,6 +6,28 @@ import JSZip from 'jszip'
 import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
 
+// Feature-detect support for fetch with a ReadableStream body + duplex:'half'.
+// Required for streaming uploads (RAM stays at ~one chunk regardless of file
+// size). Available on Chrome 105+, Edge 105+, Firefox 105+, Safari 16.4+.
+// Older engines fall back to the in-memory Blob path further down.
+const supportsRequestStreams = (() => {
+  let duplexAccessed = false
+  try {
+    const req = new Request('http://example.invalid/', {
+      method: 'POST',
+      body: new ReadableStream(),
+      get duplex() {
+        duplexAccessed = true
+        return 'half'
+      },
+    } as any)
+    // request-stream bodies don't auto-set Content-Type
+    return duplexAccessed && !req.headers.has('Content-Type')
+  } catch {
+    return false
+  }
+})()
+
 interface UploadState {
   file: File | null
   files: File[] | null
@@ -145,32 +167,72 @@ const UploadPage: React.FC = () => {
 
       const { key, salt } = await ClientCrypto.generateKeys()
 
-      const encryptedChunks: Uint8Array[] = []
-      for await (const chunk of ClientCrypto.encryptFileStream(fileToUpload, key, salt, 65536, (progress) =>
-        setState(prev => ({ ...prev, progress: 30 + (progress * 0.4) }))
-      )) {
-        encryptedChunks.push(chunk)
+      let response: { id: string; downloadUrl: string; expiresAt: string }
+
+      if (supportsRequestStreams) {
+        // Streaming path: pipe encryption straight into the request body.
+        // RAM stays at ~one record (64 KB) regardless of file size.
+        const boundary = '----WhirlcryptBoundary' + Math.random().toString(36).slice(2)
+        const encoder = new TextEncoder()
+
+        const body = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            try {
+              controller.enqueue(encoder.encode(
+                `--${boundary}\r\nContent-Disposition: form-data; name="retentionHours"\r\n\r\n${state.retentionHours}\r\n`
+              ))
+              controller.enqueue(encoder.encode(
+                `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileToUpload.name}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+              ))
+              for await (const chunk of ClientCrypto.encryptFileStream(
+                fileToUpload, key, salt, 65536,
+                (progress) => setState(prev => ({ ...prev, progress: 30 + (progress * 0.65) }))
+              )) {
+                controller.enqueue(chunk)
+              }
+              controller.enqueue(encoder.encode(`\r\n--${boundary}--\r\n`))
+              controller.close()
+            } catch (e) {
+              controller.error(e)
+            }
+          },
+        })
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+          body,
+          // @ts-ignore — duplex required for streaming bodies, not yet in TS lib types
+          duplex: 'half',
+        } as RequestInit)
+        if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+        response = await uploadResponse.json()
+      } else {
+        // Fallback for engines without request-stream support (Safari <16.4 etc.).
+        // Encrypts to memory, then uploads via FormData. RAM = file size.
+        const encryptedChunks: Uint8Array[] = []
+        for await (const chunk of ClientCrypto.encryptFileStream(
+          fileToUpload, key, salt, 65536,
+          (progress) => setState(prev => ({ ...prev, progress: 30 + (progress * 0.4) }))
+        )) {
+          encryptedChunks.push(chunk)
+        }
+        setState(prev => ({ ...prev, progress: 70 }))
+
+        const encryptedBlob = new Blob(encryptedChunks as unknown as BlobPart[], {
+          type: 'application/octet-stream',
+        })
+        const formData = new FormData()
+        formData.append('retentionHours', String(state.retentionHours))
+        formData.append('file', encryptedBlob, fileToUpload.name)
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+        if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+        response = await uploadResponse.json()
       }
-
-      setState(prev => ({ ...prev, progress: 70 }))
-
-      // Encrypted chunks are already fully in memory at this point, so the
-      // previous ReadableStream/duplex:'half' approach gave no real streaming
-      // benefit while requiring HTTP/2 (Chrome restriction). FormData over
-      // HTTP/1.1 is functionally identical and broadly compatible.
-      const encryptedBlob = new Blob(encryptedChunks as unknown as BlobPart[], {
-        type: 'application/octet-stream',
-      })
-      const formData = new FormData()
-      formData.append('retentionHours', String(state.retentionHours))
-      formData.append('file', encryptedBlob, fileToUpload.name)
-
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
-      const response = await uploadResponse.json()
 
       const shareUrl = ClientCrypto.generateShareUrl(
         response.id,
