@@ -572,7 +572,7 @@ const UploadPage: React.FC = () => {
                   recognise future links from the same identity. Verifiable, but only meaningful
                   once the recipient has confirmed your fingerprint out-of-band.
                 </span>
-                {state.myFingerprint && (
+                {state.signingEnabled && state.myFingerprint && (
                   <span
                     className="block mt-2 font-mono"
                     style={{ fontSize: 11, color: 'var(--ember)' }}
