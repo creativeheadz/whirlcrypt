@@ -14,12 +14,10 @@ router.get('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const fileManager = getFileManager();
 
-    // Parse decryption key from request headers or body
-    const keyHex = req.headers['x-encryption-key'] as string || req.query.key as string;
-
-    if (!keyHex) {
-      return res.status(400).json({ error: 'Missing encryption key' });
-    }
+    // (Historically the route also parsed an `x-encryption-key` header for a
+    // 0-bit "is anything there?" gate. The v2 client carries the key only in
+    // the URL fragment and never transmits it — the server has no business
+    // seeing it — so the gate has been removed.)
 
     // Check if file exists and is available
     const isAvailable = await fileManager.isFileAvailable(id);
