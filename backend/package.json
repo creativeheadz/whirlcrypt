@@ -40,7 +40,7 @@
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
     "swagger-ui-express": "^5.0.1",
-    "uuid": "^9.0.0",
+    "uuid": "^14.0.0",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
