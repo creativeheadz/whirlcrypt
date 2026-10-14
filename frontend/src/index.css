@@ -225,6 +225,7 @@
     line-height: 1;
   }
   .btn:hover { background: var(--ink); color: var(--paper); }
+  .btn:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
   .btn:disabled { opacity: 0.45; cursor: not-allowed; background: transparent; color: var(--ink-faint); }
   .btn:disabled:hover { background: transparent; color: var(--ink-faint); }
 

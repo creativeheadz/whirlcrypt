@@ -8,6 +8,7 @@ import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
 import { DEFAULT_LIMITS, resolveServerLimits, ServerLimits } from '../utils/limits'
 import { mapUploadError, readErrorMessage } from '../utils/transfer'
+import { copyTextToClipboard } from '../utils/clipboard'
 
 type UploadPhase = 'idle' | 'compressing' | 'encrypting' | 'awaiting-server' | 'done'
 
@@ -405,10 +406,14 @@ const UploadPage: React.FC = () => {
 
   const handleCopyLink = async () => {
     if (!state.shareUrl) return
-    await navigator.clipboard.writeText(state.shareUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-    showSuccess('Link copied', 'Share URL on the clipboard.')
+    const ok = await copyTextToClipboard(state.shareUrl)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      showSuccess('Link copied', 'Share URL on the clipboard.')
+    } else {
+      showError('Copy failed', 'Select the link above and copy it manually.')
+    }
   }
 
   const formatFileSize = (bytes: number): string => {
@@ -526,11 +531,12 @@ const UploadPage: React.FC = () => {
         {hasSelection && !state.shareUrl && (
           <div className="mt-6 pt-5 border-t border-rule space-y-5">
             <div>
-              <label className="folio block mb-2 flex items-center gap-2">
+              <label htmlFor="retention-hours" className="folio block mb-2 flex items-center gap-2">
                 <Clock className="h-3.5 w-3.5" />
                 {state.isFolder ? 'Folder' : 'File'} retention
               </label>
               <select
+                id="retention-hours"
                 value={state.retentionHours}
                 onChange={e => setState(prev => ({ ...prev, retentionHours: parseInt(e.target.value) }))}
                 className="input max-w-xs"
@@ -564,11 +570,12 @@ const UploadPage: React.FC = () => {
             </label>
 
             <div>
-              <label className="folio block mb-2 flex items-center gap-2">
+              <label htmlFor="allowed-ips" className="folio block mb-2 flex items-center gap-2">
                 <Lock className="h-3 w-3" />
                 Restrict downloads to these IPs (optional)
               </label>
               <input
+                id="allowed-ips"
                 type="text"
                 value={state.allowedIps}
                 disabled={state.uploading}
@@ -612,8 +619,9 @@ const UploadPage: React.FC = () => {
             {state.passphraseEnabled && (
               <div className="space-y-3 pl-7">
                 <div>
-                  <label className="folio block mb-1.5">Passphrase</label>
+                  <label htmlFor="upload-passphrase" className="folio block mb-1.5">Passphrase</label>
                   <input
+                    id="upload-passphrase"
                     type="password"
                     value={state.passphrase}
                     disabled={state.uploading}
@@ -624,8 +632,9 @@ const UploadPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="folio block mb-1.5">Confirm passphrase</label>
+                  <label htmlFor="upload-passphrase-confirm" className="folio block mb-1.5">Confirm passphrase</label>
                   <input
+                    id="upload-passphrase-confirm"
                     type="password"
                     value={state.passphraseConfirm}
                     disabled={state.uploading}
@@ -755,7 +764,16 @@ const UploadPage: React.FC = () => {
                     <Share2 className="h-3 w-3" /> Share link (key in fragment, never sent)
                   </div>
                   <div className="flex gap-2">
-                    <input type="text" value={state.shareUrl} readOnly className="input flex-1" style={{ fontSize: 11 }} />
+                    <input
+                      type="text"
+                      value={state.shareUrl}
+                      readOnly
+                      aria-label="Share link"
+                      onFocus={e => e.currentTarget.select()}
+                      onClick={e => e.currentTarget.select()}
+                      className="input flex-1"
+                      style={{ fontSize: 11 }}
+                    />
                     <button
                       onClick={handleCopyLink}
                       className={`btn ${copied ? 'btn-secondary' : 'btn-secondary'}`}
