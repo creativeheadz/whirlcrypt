@@ -28,8 +28,14 @@ export interface AttackStats {
 export class AttackLogger {
   private pool: Pool;
 
-  constructor() {
-    this.pool = DatabaseConnection.getPool();
+  constructor(pool?: Pool) {
+    this.pool = pool ?? DatabaseConnection.getPool();
+  }
+
+  private static assertWindow(value: number, name: string): void {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw new Error(`${name} must be a non-negative finite number`);
+    }
   }
 
   /**
@@ -102,16 +108,17 @@ export class AttackLogger {
    * Get recent attack attempts from an IP
    */
   async getRecentAttempts(ip: string, minutesBack: number = 5): Promise<number> {
+    AttackLogger.assertWindow(minutesBack, 'minutesBack');
     const query = `
       SELECT COUNT(*) as count
       FROM attack_logs
-      WHERE ip = $1 
-      AND timestamp > NOW() - INTERVAL '${minutesBack} minutes'
+      WHERE ip = $1
+      AND timestamp > NOW() - ($2 * INTERVAL '1 minute')
       AND response_code = 404
     `;
 
     try {
-      const result = await this.pool.query(query, [ip]);
+      const result = await this.pool.query(query, [ip, minutesBack]);
       return parseInt(result.rows[0].count);
     } catch (error) {
       console.error('Error getting recent attempts:', error);
@@ -204,18 +211,19 @@ export class AttackLogger {
    * Get attacks by time period for charts
    */
   async getAttacksByTime(hours: number = 24): Promise<Array<{ hour: string; count: number }>> {
+    AttackLogger.assertWindow(hours, 'hours');
     const query = `
-      SELECT 
+      SELECT
         DATE_TRUNC('hour', timestamp) as hour,
         COUNT(*) as count
       FROM attack_logs
-      WHERE timestamp > NOW() - INTERVAL '${hours} hours'
+      WHERE timestamp > NOW() - ($1 * INTERVAL '1 hour')
       GROUP BY DATE_TRUNC('hour', timestamp)
       ORDER BY hour
     `;
 
     try {
-      const result = await this.pool.query(query);
+      const result = await this.pool.query(query, [hours]);
       return result.rows.map(row => ({
         hour: row.hour.toISOString(),
         count: parseInt(row.count)

@@ -2,6 +2,30 @@ import { Pool, Client, PoolConfig } from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+/**
+ * Quote a Postgres identifier for the bootstrap DDL in createDatabase().
+ * Env-provided database/user names must be plain identifiers; anything
+ * else fails closed instead of breaking out of the quoted name.
+ */
+export function quotePostgresIdent(name: unknown): string {
+  if (typeof name !== 'string' || !/^[A-Za-z_][A-Za-z0-9_$]*$/.test(name)) {
+    throw new Error(`unsafe Postgres identifier: ${JSON.stringify(name)}`);
+  }
+  return `"${name}"`;
+}
+
+/**
+ * Quote a Postgres string literal (standard_conforming_strings=on).
+ * Only used for the bootstrap CREATE USER password, which cannot be
+ * passed as a bound parameter in DDL.
+ */
+export function quotePostgresLiteral(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new Error('unsafe Postgres literal: expected a string');
+  }
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 export class DatabaseConnection {
   private static pool: Pool | null = null;
 
@@ -81,6 +105,9 @@ export class DatabaseConnection {
   static async createDatabase(): Promise<void> {
     const config = this.getConfig();
     const dbName = config.database;
+    const quotedDb = quotePostgresIdent(dbName);
+    const quotedUser = quotePostgresIdent(config.user);
+    const quotedPassword = quotePostgresLiteral(config.password);
     
     // Connect to postgres database to create our database
     const adminClient = new Client({
@@ -99,13 +126,13 @@ export class DatabaseConnection {
 
       if (result.rows.length === 0) {
         // Create database
-        await adminClient.query(`CREATE DATABASE "${dbName}"`);
+        await adminClient.query(`CREATE DATABASE ${quotedDb}`);
         console.log(`Database "${dbName}" created successfully`);
-        
+
         // Create user if not exists
         try {
           await adminClient.query(
-            `CREATE USER "${config.user}" WITH PASSWORD '${config.password}'`
+            `CREATE USER ${quotedUser} WITH PASSWORD ${quotedPassword}`
           );
           console.log(`User "${config.user}" created successfully`);
         } catch (userError: any) {
@@ -117,7 +144,7 @@ export class DatabaseConnection {
         }
 
         // Grant privileges
-        await adminClient.query(`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${config.user}"`);
+        await adminClient.query(`GRANT ALL PRIVILEGES ON DATABASE ${quotedDb} TO ${quotedUser}`);
         console.log(`Privileges granted to "${config.user}"`);
       } else {
         console.log(`Database "${dbName}" already exists`);
