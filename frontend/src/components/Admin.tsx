@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Trash2, RefreshCw, HardDrive, Clock, FileText, AlertTriangle, LogOut, Save, Shield } from 'lucide-react'
 import axios from 'axios'
 import AdminLogin from './AdminLogin'
+import { clearAdminToken } from '../utils/adminToken'
 
 interface Stats {
   totalFiles: number
@@ -139,7 +140,7 @@ const Admin: React.FC = () => {
     } catch {
       // ignore
     } finally {
-      localStorage.removeItem('adminToken')
+      clearAdminToken()
       setIsAuthenticated(false)
       setStats(null)
       setConfig(null)

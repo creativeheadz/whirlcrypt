@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 import { ShieldCheck } from 'lucide-react'
+import { setAdminToken } from '../utils/adminToken'
 
 interface Props {
   onSuccess: () => void
@@ -25,7 +26,7 @@ const AdminLogin: React.FC<Props> = ({ onSuccess }) => {
         setRequiresMFA(true)
         setChallengeToken(res.data.challengeToken)
       } else if (res.data?.token) {
-        localStorage.setItem('adminToken', res.data.token)
+        setAdminToken(res.data.token)
         onSuccess()
       } else {
         setError('Unexpected response from server.')
@@ -51,7 +52,7 @@ const AdminLogin: React.FC<Props> = ({ onSuccess }) => {
         mfaToken: mfaCode.trim(),
       })
       if (res.data?.token) {
-        localStorage.setItem('adminToken', res.data.token)
+        setAdminToken(res.data.token)
         onSuccess()
       } else {
         setError('Unexpected response from server.')
