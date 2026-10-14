@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
+import { resolveWithinBase } from '../../utils/storagePath';
 import { randomUUID } from 'crypto';
 import {
   StorageProvider,
@@ -135,7 +136,10 @@ export class LocalStorageProvider implements StorageProvider {
       throw new Error('Storage provider not initialized');
     }
 
-    const fullPath = join(this.basePath, storagePath);
+    const fullPath = resolveWithinBase(this.basePath, storagePath);
+    if (!fullPath) {
+      throw new Error('Storage path escapes the storage directory');
+    }
 
     try {
       console.log(`Attempting to retrieve file from: ${fullPath}`);
@@ -156,7 +160,10 @@ export class LocalStorageProvider implements StorageProvider {
       throw new Error('Storage provider not initialized');
     }
 
-    const fullPath = join(this.basePath, storagePath);
+    const fullPath = resolveWithinBase(this.basePath, storagePath);
+    if (!fullPath) {
+      throw new Error('Storage path escapes the storage directory');
+    }
     const metadataPath = `${fullPath}.meta`;
 
     try {
@@ -187,8 +194,11 @@ export class LocalStorageProvider implements StorageProvider {
       throw new Error('Storage provider not initialized');
     }
 
-    const fullPath = join(this.basePath, storagePath);
-    
+    const fullPath = resolveWithinBase(this.basePath, storagePath);
+    if (!fullPath) {
+      return false;
+    }
+
     try {
       await fs.access(fullPath);
       return true;
@@ -202,8 +212,11 @@ export class LocalStorageProvider implements StorageProvider {
       throw new Error('Storage provider not initialized');
     }
 
-    const fullPath = join(this.basePath, storagePath);
-    
+    const fullPath = resolveWithinBase(this.basePath, storagePath);
+    if (!fullPath) {
+      return { size: 0, lastModified: new Date(0), exists: false };
+    }
+
     try {
       const stats = await fs.stat(fullPath);
       return {
@@ -310,7 +323,10 @@ export class LocalStorageProvider implements StorageProvider {
       throw new Error('Storage provider not initialized');
     }
 
-    const fullPath = join(this.basePath, storagePath);
+    const fullPath = resolveWithinBase(this.basePath, storagePath);
+    if (!fullPath) {
+      return null;
+    }
     const metadataPath = `${fullPath}.meta`;
 
     try {
@@ -330,7 +346,10 @@ export class LocalStorageProvider implements StorageProvider {
       throw new Error('Storage provider not initialized');
     }
 
-    const searchPath = prefix ? join(this.basePath, prefix) : this.basePath;
+    const searchPath = prefix ? resolveWithinBase(this.basePath, prefix) : this.basePath;
+    if (!searchPath) {
+      return [];
+    }
     const files: string[] = [];
 
     const walkDir = async (dir: string, relativePath = ''): Promise<void> => {

@@ -7,6 +7,7 @@ import { createReadStream, ReadStream } from 'fs';
 import { join } from 'path';
 import { MetadataEncryption, FileMetadataToEncrypt } from '../services/MetadataEncryption';
 import { sanitizeForLog } from '../utils/filename';
+import { resolveWithinBase } from '../utils/storagePath';
 
 export class FileManagerV2 {
   private storageManager: StorageManager;
@@ -213,7 +214,11 @@ export class FileManagerV2 {
     try {
       // For local storage, create a read stream directly
       if (config.storage.provider === 'local' && config.storage.local) {
-        const fullPath = join(config.storage.local.path, metadata.storagePath);
+        const fullPath = resolveWithinBase(config.storage.local.path, metadata.storagePath);
+        if (!fullPath) {
+          console.error('Refusing to stream file with escaping storage path:', fileId);
+          return null;
+        }
         return createReadStream(fullPath);
       }
 
