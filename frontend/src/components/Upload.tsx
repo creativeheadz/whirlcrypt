@@ -7,6 +7,7 @@ import JSZip from 'jszip'
 import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
 import { DEFAULT_LIMITS, resolveServerLimits, ServerLimits } from '../utils/limits'
+import { mapUploadError, readErrorMessage } from '../utils/transfer'
 
 type UploadPhase = 'idle' | 'compressing' | 'encrypting' | 'awaiting-server' | 'done'
 
@@ -300,7 +301,9 @@ const UploadPage: React.FC = () => {
           // @ts-ignore — duplex required for streaming bodies, not yet in TS lib types
           duplex: 'half',
         } as RequestInit)
-        if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+        if (!uploadResponse.ok) {
+          throw new Error(mapUploadError(uploadResponse.status, await readErrorMessage(uploadResponse)))
+        }
         response = await uploadResponse.json()
       } else {
         // Fallback for engines without request-stream support (Safari <16.4 etc.).
@@ -331,7 +334,9 @@ const UploadPage: React.FC = () => {
           body: formData,
           signal: controller.signal,
         })
-        if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+        if (!uploadResponse.ok) {
+          throw new Error(mapUploadError(uploadResponse.status, await readErrorMessage(uploadResponse)))
+        }
         response = await uploadResponse.json()
       }
 

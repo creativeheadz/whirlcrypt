@@ -4,6 +4,7 @@ import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock, KeyRound, Fi
 import { ClientCrypto, EnvelopeMetadata } from '../crypto/rfc8188'
 import { verifyAttestation, fingerprint as computeFingerprint } from '../crypto/identity'
 import { sanitizeDownloadFilename } from '../utils/filename'
+import { downloadProgressPercent, readContentLength } from '../utils/transfer'
 import axios from 'axios'
 
 type AttestationStatus = 'none' | 'verifying' | 'valid' | 'invalid'
@@ -18,6 +19,8 @@ interface DownloadState {
   fileInfo: FileInfo | null
   downloading: boolean
   progress: number
+  receivedBytes: number
+  totalBytes: number | null
   error: string | null
 
   // URL fragment params
@@ -42,6 +45,8 @@ const Download: React.FC = () => {
     fileInfo: null,
     downloading: false,
     progress: 0,
+    receivedBytes: 0,
+    totalBytes: null,
     error: null,
     keyOrWrapped: null,
     salt: null,
@@ -126,7 +131,7 @@ const Download: React.FC = () => {
 
     const controller = new AbortController()
     abortRef.current = controller
-    setState(prev => ({ ...prev, downloading: true, progress: 0, error: null, passphraseError: null }))
+    setState(prev => ({ ...prev, downloading: true, progress: 0, receivedBytes: 0, totalBytes: null, error: null, passphraseError: null }))
 
     try {
       const response = await fetch(`/api/download/${id}`, { signal: controller.signal })
@@ -135,6 +140,8 @@ const Download: React.FC = () => {
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
       if (!response.body) throw new Error('Response body is not available')
+      const totalBytes = readContentLength(response)
+      setState(prev => ({ ...prev, totalBytes }))
 
       let metadata: EnvelopeMetadata | null = null
       let fileWriter: any = null
@@ -195,9 +202,12 @@ const Download: React.FC = () => {
             }
           },
         },
-        (downloaded, decrypted) => {
-          const progress = Math.min(95, (decrypted / (downloaded || 1)) * 95)
-          setState(prev => ({ ...prev, progress }))
+        (_downloaded, _decrypted) => {
+          // Scale against the announced total, not the decrypted/downloaded
+          // ratio (which sat near 95% from the first chunk). Without a total
+          // the gauge goes indeterminate and the UI shows raw bytes instead.
+          const progress = downloadProgressPercent(receivedBytes, totalBytes)
+          setState(prev => ({ ...prev, progress: progress ?? prev.progress, receivedBytes }))
         }
       )
 
@@ -387,9 +397,17 @@ const Download: React.FC = () => {
             <div className="mt-5">
               <div className="flex justify-between folio mb-1">
                 <span>Decrypting{state.fileInfo ? ` · ${state.fileInfo.filename}` : ''}</span>
-                <span>{Math.round(state.progress)}%</span>
+                <span>
+                  {state.totalBytes
+                    ? `${Math.round(state.progress)}%`
+                    : formatFileSize(state.receivedBytes)}
+                </span>
               </div>
-              <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
+              {state.totalBytes ? (
+                <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
+              ) : (
+                <div className="gauge"><div className="gauge-fill gauge-pulse" style={{ width: '100%' }} /></div>
+              )}
               <div className="pt-3">
                 <button onClick={handleCancelDownload} className="btn btn-secondary">
                   Cancel download
