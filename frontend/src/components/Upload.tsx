@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { FileText, Lock, Share2, AlertCircle, CheckCircle2, Copy, Folder, FolderOpen, Clock, Loader2, Fingerprint } from 'lucide-react'
 import { ClientCrypto } from '../crypto/rfc8188'
@@ -110,6 +110,7 @@ const UploadPage: React.FC = () => {
   }, [])
   const [copied, setCopied] = useState(false)
   const { showError, showSuccess, showInfo } = useToast()
+  const abortRef = useRef<AbortController | null>(null)
 
   const calculateTotalSize = (files: File[]): number =>
     files.reduce((total, file) => total + file.size, 0)
@@ -202,7 +203,7 @@ const UploadPage: React.FC = () => {
   }
 
   const handleUpload = async () => {
-    if (!state.file && !state.files) return
+    if ((!state.file && !state.files) || state.uploading) return
 
     if (state.passphraseEnabled) {
       if (state.passphrase.length < 8) {
@@ -216,6 +217,8 @@ const UploadPage: React.FC = () => {
     }
 
     const initialPhase: UploadPhase = state.isFolder ? 'compressing' : 'encrypting'
+    const controller = new AbortController()
+    abortRef.current = controller
     setState(prev => ({ ...prev, uploading: true, progress: 0, zipProgress: 0, phase: initialPhase, error: null }))
     try {
       let fileToUpload: File
@@ -293,6 +296,7 @@ const UploadPage: React.FC = () => {
           method: 'POST',
           headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
           body,
+          signal: controller.signal,
           // @ts-ignore — duplex required for streaming bodies, not yet in TS lib types
           duplex: 'half',
         } as RequestInit)
@@ -325,6 +329,7 @@ const UploadPage: React.FC = () => {
         const uploadResponse = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
+          signal: controller.signal,
         })
         if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
         response = await uploadResponse.json()
@@ -355,12 +360,42 @@ const UploadPage: React.FC = () => {
       showSuccess(state.isFolder ? 'Folder uploaded' : 'File uploaded', 'Encrypted and ready to share.')
     } catch (error) {
       console.error('Upload error:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User-cancelled: keep the selection so they can retry immediately.
+        setState(prev => ({ ...prev, uploading: false, progress: 0, zipProgress: 0, phase: 'idle', error: 'Upload cancelled.' }))
+        return
+      }
       const errorMessage = axios.isAxiosError(error)
         ? error.response?.data?.error || 'Upload failed'
         : error instanceof Error ? error.message : 'Upload failed'
       setState(prev => ({ ...prev, uploading: false, progress: 0, zipProgress: 0, phase: 'idle', error: errorMessage }))
       showError('Upload failed', errorMessage)
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null
     }
+  }
+
+  const handleCancelUpload = () => {
+    abortRef.current?.abort()
+  }
+
+  const handleStartOver = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setCopied(false)
+    setState(prev => ({
+      ...prev,
+      file: null,
+      files: null,
+      uploading: false,
+      progress: 0,
+      zipProgress: 0,
+      phase: 'idle',
+      error: null,
+      shareUrl: null,
+      isFolder: false,
+      folderName: null,
+    }))
   }
 
   const handleCopyLink = async () => {
@@ -672,6 +707,12 @@ const UploadPage: React.FC = () => {
                 </div>
               </div>
             )}
+
+            <div className="pt-1">
+              <button onClick={handleCancelUpload} className="btn btn-secondary">
+                Cancel upload
+              </button>
+            </div>
           </div>
         )}
 
@@ -679,7 +720,19 @@ const UploadPage: React.FC = () => {
         {state.error && (
           <div className="strip strip-error mt-6">
             <AlertCircle className="h-4 w-4 text-led-red flex-shrink-0 mt-0.5" />
-            <div className="text-ink" style={{ fontSize: 13 }}>{state.error}</div>
+            <div className="flex-1">
+              <div className="text-ink" style={{ fontSize: 13 }}>{state.error}</div>
+              {hasSelection && !state.uploading && !state.shareUrl && (
+                <div className="flex gap-2 mt-3">
+                  <button onClick={handleUpload} className="btn btn-primary">
+                    Try again
+                  </button>
+                  <button onClick={handleStartOver} className="btn btn-secondary">
+                    Start over
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -715,6 +768,11 @@ const UploadPage: React.FC = () => {
                   <dt>Server sees</dt>
                   <dd>encrypted bytes only</dd>
                 </dl>
+                <div>
+                  <button onClick={handleStartOver} className="btn btn-secondary">
+                    Seal another file
+                  </button>
+                </div>
               </div>
             </div>
           </div>

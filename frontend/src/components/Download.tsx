@@ -56,6 +56,7 @@ const Download: React.FC = () => {
   // Links are single-parse: the fragment is scrubbed after reading, so an
   // effect re-run (StrictMode) must not wipe keys with a spurious error.
   const parsedForId = useRef<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
   useEffect(() => {
     if (parsedForId.current === id) return
     parsedForId.current = id ?? null
@@ -99,7 +100,7 @@ const Download: React.FC = () => {
   }, [id])
 
   const handleDownload = async () => {
-    if (!id || !state.keyOrWrapped || !state.salt) return
+    if (!id || !state.keyOrWrapped || !state.salt || state.downloading) return
 
     // Resolve the actual file key. If the link is passphrase-locked, unwrap
     // the key with the user-supplied passphrase first.
@@ -123,10 +124,12 @@ const Download: React.FC = () => {
       key = state.keyOrWrapped
     }
 
+    const controller = new AbortController()
+    abortRef.current = controller
     setState(prev => ({ ...prev, downloading: true, progress: 0, error: null, passphraseError: null }))
 
     try {
-      const response = await fetch(`/api/download/${id}`)
+      const response = await fetch(`/api/download/${id}`, { signal: controller.signal })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
@@ -210,6 +213,10 @@ const Download: React.FC = () => {
       }))
     } catch (error) {
       console.error('Download error:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        setState(prev => ({ ...prev, downloading: false, progress: 0, error: 'Download cancelled.' }))
+        return
+      }
       const isAuthFailure = error instanceof Error && (
         error.message.includes('OperationError') ||
         error.message.includes('salt mismatch') ||
@@ -244,7 +251,13 @@ const Download: React.FC = () => {
         }
       }
       setState(prev => ({ ...prev, downloading: false, progress: 0, error: errorMessage }))
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null
     }
+  }
+
+  const handleCancelDownload = () => {
+    abortRef.current?.abort()
   }
 
   const formatFileSize = (bytes: number): string => {
@@ -377,6 +390,11 @@ const Download: React.FC = () => {
                 <span>{Math.round(state.progress)}%</span>
               </div>
               <div className="gauge"><div className="gauge-fill" style={{ width: `${state.progress}%` }} /></div>
+              <div className="pt-3">
+                <button onClick={handleCancelDownload} className="btn btn-secondary">
+                  Cancel download
+                </button>
+              </div>
             </div>
           )}
         </section>
@@ -415,9 +433,16 @@ const Download: React.FC = () => {
           <div className="folio mb-4">§ 02 · Trouble</div>
           <div className="strip strip-error">
             <AlertCircle className="h-5 w-5 text-led-red flex-shrink-0 mt-0.5" />
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1">
               <div className="font-display italic text-lg text-ink">Could not deliver.</div>
               <div className="text-ink-soft" style={{ fontSize: 13 }}>{state.error}</div>
+              {state.keyOrWrapped && state.salt && (
+                <div className="pt-1">
+                  <button onClick={handleDownload} className="btn btn-primary">
+                    Try again
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
