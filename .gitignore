@@ -97,6 +97,9 @@ temp/
 uploads/
 !**/uploads/.gitkeep
 
+# Filesystem fallback stores for the admin CLI (runtime state, not fixtures).
+backend/data/
+
 # IDE and editor files
 .vscode/
 .idea/
