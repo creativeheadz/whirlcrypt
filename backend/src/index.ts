@@ -4,7 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
-import YAML from 'yamljs';
+import { parse as parseYaml } from 'yaml';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { config } from './config/config';
@@ -83,8 +84,8 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use(sanitizeInput);
 
-// Load OpenAPI spec
-const swaggerDocument = YAML.load(join(__dirname, '../../docs/openapi.yaml'));
+// Load OpenAPI spec (parsed once at boot; the file is ours, not user input)
+const swaggerDocument = parseYaml(readFileSync(join(__dirname, '../../docs/openapi.yaml'), 'utf8'));
 
 // API Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
