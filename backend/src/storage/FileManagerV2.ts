@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { createReadStream, ReadStream } from 'fs';
 import { join } from 'path';
 import { MetadataEncryption, FileMetadataToEncrypt } from '../services/MetadataEncryption';
+import { sanitizeForLog } from '../utils/filename';
 
 export class FileManagerV2 {
   private storageManager: StorageManager;
@@ -298,7 +299,7 @@ export class FileManagerV2 {
       // Mark as inactive in database
       await this.fileRepository.update(fileId, { isActive: false });
       
-      console.log(`File deleted: ${fileId} (${metadata.filename})`);
+      console.log(`File deleted: ${fileId} (${sanitizeForLog(metadata.filename)})`);
       return true;
     } catch (error: any) {
       console.error(`Error deleting file ${fileId}:`, error);
@@ -319,7 +320,7 @@ export class FileManagerV2 {
         if (file.storagePath) {
           try {
             await this.storageManager.delete(file.storagePath);
-            console.log(`Removed expired file from storage: ${file.id} (${file.filename})`);
+            console.log(`Removed expired file from storage: ${file.id} (${sanitizeForLog(file.filename)})`);
           } catch (error: any) {
             console.error(`Error removing expired file from storage ${file.id}:`, error);
           }

@@ -3,6 +3,7 @@ import { useParams, Navigate } from 'react-router-dom'
 import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock, KeyRound, Fingerprint, ShieldAlert } from 'lucide-react'
 import { ClientCrypto, EnvelopeMetadata } from '../crypto/rfc8188'
 import { verifyAttestation, fingerprint as computeFingerprint } from '../crypto/identity'
+import { sanitizeDownloadFilename } from '../utils/filename'
 import axios from 'axios'
 
 type AttestationStatus = 'none' | 'verifying' | 'valid' | 'invalid'
@@ -149,7 +150,7 @@ const Download: React.FC = () => {
             if (useFileSystemAPI) {
               try {
                 const handle = await (window as any).showSaveFilePicker({
-                  suggestedName: m.filename,
+                  suggestedName: sanitizeDownloadFilename(m.filename),
                   types: [{
                     description: m.contentType || 'File',
                     accept: { [m.contentType || 'application/octet-stream']: ['.*'] },
@@ -183,7 +184,7 @@ const Download: React.FC = () => {
               const url = URL.createObjectURL(finalBlob)
               const a = document.createElement('a')
               a.href = url
-              a.download = filename
+              a.download = sanitizeDownloadFilename(filename)
               document.body.appendChild(a)
               a.click()
               a.remove()
