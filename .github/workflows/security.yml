@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
           
       - name: Install dependencies
@@ -102,27 +102,29 @@ jobs:
   codeql-analysis:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        language: [ 'javascript', 'typescript' ]
-        
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
-          
+          # One language: 'javascript' already covers TypeScript; the old
+          # matrix ran the identical analysis twice.
+          languages: javascript-typescript
+
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-        
+        uses: github/codeql-action/autobuild@v4
+
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:${{matrix.language}}"
+          category: "/language:javascript-typescript"
 
   security-summary:
     name: Security Summary
