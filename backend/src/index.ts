@@ -143,7 +143,8 @@ if (config.nodeEnv === 'production') {
   const frontendPath = join(__dirname, '../../frontend/dist');
 
   // Serve index.html for all non-API routes (SPA routing) with CSP nonce injection
-  app.get('*', cspMiddleware, (req, res) => {
+  // NOTE: Express 5 (path-to-regexp v8) spells the wildcard /{*splat}; bare '*' throws at boot.
+  app.get('/{*splat}', cspMiddleware, (req, res) => {
     // Skip API routes
     if (req.path.startsWith('/api/')) {
       return res.status(404).sendFile(join(__dirname, '../public/404.html'));
@@ -174,8 +175,9 @@ if (config.nodeEnv === 'production') {
     }
   });
 } else {
-  // 404 handler for development (frontend served separately)
-  app.use('*', AttackDetectionMiddleware.handle404());
+  // 404 handler for development (frontend served separately). No mount path:
+  // matches everything not handled above on Express 4 and 5 alike.
+  app.use(AttackDetectionMiddleware.handle404());
 }
 
 // Global error handler

@@ -281,9 +281,13 @@ export const sanitizeInput = (req: Request, res: Response, next: NextFunction) =
     req.body = sanitizeObject(req.body);
   }
   
-  // Sanitize query parameters
-  if (req.query) {
-    req.query = sanitizeObject(req.query);
+  // Sanitize query parameters in place: Express 5 exposes req.query as a
+  // getter-only property, so wholesale reassignment throws at runtime.
+  if (req.query && typeof req.query === 'object') {
+    const query = req.query as Record<string, unknown>;
+    for (const key of Object.keys(query)) {
+      query[key] = sanitizeObject(query[key]);
+    }
   }
   
   next();

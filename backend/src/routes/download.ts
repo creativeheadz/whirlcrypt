@@ -31,7 +31,9 @@ export function isAllowedForIp(req: Request, metadata: FileMetadata): boolean {
  */
 router.get('/:id', downloadRateLimitMiddleware, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    // Express 5 types repeatable params as string[]; single-segment :id takes the first.
+    const idParam = req.params.id;
+    const id = Array.isArray(idParam) ? idParam[0] : idParam;
     const fileManager = getFileManager();
 
     // (Historically the route also parsed an `x-encryption-key` header for a
@@ -124,7 +126,9 @@ router.get('/:id', downloadRateLimitMiddleware, async (req: Request, res: Respon
  */
 router.get('/:id/info', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    // Express 5 types repeatable params as string[]; single-segment :id takes the first.
+    const idParam = req.params.id;
+    const id = Array.isArray(idParam) ? idParam[0] : idParam;
     const fileManager = getFileManager();
 
     // Check if file exists and is available
