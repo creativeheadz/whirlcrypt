@@ -359,9 +359,9 @@ npm start
 
 1. **Database**: PostgreSQL recommended for production (included in Docker setup)
 2. **Storage**: Local disk works; S3/GCS providers are planned for larger scale
-3. **Monitoring**: Add structured logging and health monitoring
+3. **Monitoring**: Scoped logs with `LOG_LEVEL` are built in; point your collector at stdout/stderr (or the journal)
 4. **Security**: Set strong `JWT_SECRET`, `METADATA_ENCRYPTION_KEY`, and `DB_PASSWORD` (production refuses to boot on the dev defaults); put the app behind TLS
-5. **Backup**: Implement database and file backup strategies
+5. **Backup**: Follow [docs/BACKUP.md](docs/BACKUP.md) (nightly `pg_dump` + blob copy + encrypted `.env`)
 6. **CDN**: Use CDN for frontend assets and large file downloads
 
 ## Contributing

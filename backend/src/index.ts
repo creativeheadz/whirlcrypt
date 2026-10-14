@@ -35,8 +35,14 @@ import securityRouter from './routes/security';
 import { AttackDetectionMiddleware } from './middleware/attackDetection';
 
 import { createLogger } from './utils/logger';
+import { sweepStaleTempFiles } from './utils/tempSweep';
 
 const log = createLogger('index');
+
+/** Upload root for the temp sweeper; mirrors the fallback in routes/upload. */
+function resolveUploadDir(): string {
+  return config.storage.local?.path ?? join(process.cwd(), 'uploads');
+}
 
 const app = express();
 let fileManager: FileManagerV2 | FileManager;
@@ -208,6 +214,11 @@ cron.schedule(cleanupCron, async () => {
     const expiredBansCleanup = await banManager.cleanupExpiredBans();
 
     log.info(`Security cleanup completed: ${oldLogsCleanup} old logs, ${expiredBansCleanup} expired bans`);
+
+    const sweptTemps = await sweepStaleTempFiles(resolveUploadDir());
+    if (sweptTemps > 0) {
+      log.info(`Temp cleanup completed: ${sweptTemps} abandoned upload temps removed`);
+    }
   } catch (error) {
     log.error('Cleanup error:', error);
   }
@@ -244,6 +255,12 @@ async function initializeApp() {
       // Initialize old FileManager without database
       fileManager = new FileManager();
       setFileManager(fileManager);
+    }
+
+    // One sweep at boot: crashes leave multer temps that no route will unlink.
+    const sweptAtBoot = await sweepStaleTempFiles(resolveUploadDir());
+    if (sweptAtBoot > 0) {
+      log.info(`Removed ${sweptAtBoot} abandoned upload temps at boot`);
     }
 
     log.info('Application initialized successfully');
