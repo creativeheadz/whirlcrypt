@@ -31,7 +31,8 @@ export class FileManagerV2 {
     retentionHours: number = config.retention.defaultRetentionHours,
     maxDownloads?: number,
     uploaderIP?: string,
-    userAgent?: string
+    userAgent?: string,
+    allowedIps?: string[]
   ): Promise<FileMetadata> {
     const fileId = randomUUID();
     const expiresAt = new Date(Date.now() + (retentionHours * 60 * 60 * 1000));
@@ -73,7 +74,8 @@ export class FileManagerV2 {
       storageProvider: config.storage.provider,
       expiresAt,
       maxDownloads,
-      encryptedMetadata: serializedMetadata // Store encrypted metadata
+      encryptedMetadata: serializedMetadata, // Store encrypted metadata
+      allowedIps
     };
 
     const fileMetadata = await this.fileRepository.create(createData);
@@ -95,7 +97,8 @@ export class FileManagerV2 {
     retentionHours: number = config.retention.defaultRetentionHours,
     maxDownloads?: number,
     uploaderIP?: string,
-    userAgent?: string
+    userAgent?: string,
+    allowedIps?: string[]
   ): Promise<FileMetadata> {
     const fileId = randomUUID();
     const expiresAt = new Date(Date.now() + (retentionHours * 60 * 60 * 1000));
@@ -134,7 +137,8 @@ export class FileManagerV2 {
       storageProvider: config.storage.provider,
       expiresAt,
       maxDownloads,
-      encryptedMetadata: serializedMetadata
+      encryptedMetadata: serializedMetadata,
+      allowedIps
     };
 
     const fileMetadata = await this.fileRepository.create(createData);
@@ -191,7 +195,7 @@ export class FileManagerV2 {
       const data = await this.storageManager.retrieve(metadata.storagePath);
       return data;
     } catch (error: any) {
-      console.error(`Error retrieving file data for ${fileId}:`, error);
+      console.error('Error retrieving file data for:', fileId, error);
       return null;
     }
   }
@@ -216,7 +220,7 @@ export class FileManagerV2 {
       // For now, return null to fall back to buffer method
       return null;
     } catch (error: any) {
-      console.error(`Error creating file stream for ${fileId}:`, error);
+      console.error('Error creating file stream for:', fileId, error);
       return null;
     }
   }
@@ -247,7 +251,7 @@ export class FileManagerV2 {
     try {
       await this.fileRepository.logDownload(logData);
     } catch (error) {
-      console.error(`Error logging download for ${fileId}:`, error);
+      console.error('Error logging download for:', fileId, error);
     }
 
     // Increment counter

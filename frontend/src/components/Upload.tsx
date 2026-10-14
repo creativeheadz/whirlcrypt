@@ -32,6 +32,10 @@ const supportsRequestStreams = (() => {
   }
 })()
 
+// Mirrors MAX_ALLOWED_IPS in backend/src/utils/ipAllowlist.ts. Display-only:
+// the server re-validates and rejects over-limit lists with a 400.
+const MAX_ALLOWED_IPS = 10
+
 interface UploadState {
   file: File | null
   files: File[] | null
@@ -43,6 +47,7 @@ interface UploadState {
   shareUrl: string | null
   retentionHours: number
   burnAfterRead: boolean
+  allowedIps: string
   passphraseEnabled: boolean
   passphrase: string
   passphraseConfirm: string
@@ -65,6 +70,7 @@ const UploadPage: React.FC = () => {
     shareUrl: null,
     retentionHours: 24,
     burnAfterRead: false,
+    allowedIps: '',
     passphraseEnabled: false,
     passphrase: '',
     passphraseConfirm: '',
@@ -257,6 +263,11 @@ const UploadPage: React.FC = () => {
                   `--${boundary}\r\nContent-Disposition: form-data; name="maxDownloads"\r\n\r\n1\r\n`
                 ))
               }
+              if (state.allowedIps.trim()) {
+                controller.enqueue(encoder.encode(
+                  `--${boundary}\r\nContent-Disposition: form-data; name="allowedIps"\r\n\r\n${state.allowedIps.trim()}\r\n`
+                ))
+              }
               controller.enqueue(encoder.encode(
                 `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${opaqueUploadName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
               ))
@@ -305,6 +316,7 @@ const UploadPage: React.FC = () => {
         const formData = new FormData()
         formData.append('retentionHours', String(state.retentionHours))
         if (state.burnAfterRead) formData.append('maxDownloads', '1')
+        if (state.allowedIps.trim()) formData.append('allowedIps', state.allowedIps.trim())
         formData.append('file', encryptedBlob, opaqueUploadName)
 
         // Encryption is done; from here we're at the network's mercy.
@@ -510,6 +522,25 @@ const UploadPage: React.FC = () => {
                 </span>
               </span>
             </label>
+
+            <div>
+              <label className="folio block mb-2 flex items-center gap-2">
+                <Lock className="h-3 w-3" />
+                Restrict downloads to these IPs (optional)
+              </label>
+              <input
+                type="text"
+                value={state.allowedIps}
+                disabled={state.uploading}
+                onChange={e => setState(prev => ({ ...prev, allowedIps: e.target.value }))}
+                placeholder="e.g. 203.0.113.7, 198.51.100.0/24"
+                className="input w-full max-w-md"
+              />
+              <span className="block text-ink-faint mt-1" style={{ fontSize: 11, lineHeight: 1.5 }}>
+                Comma-separated IPs or CIDR ranges, up to {MAX_ALLOWED_IPS}.
+                Anyone outside the list gets a 404. Leave blank for no restriction.
+              </span>
+            </div>
 
             <label className="flex items-start gap-3 cursor-pointer">
               <input

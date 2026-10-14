@@ -18,9 +18,21 @@ CREATE TABLE IF NOT EXISTS files (
     download_count INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT true,
     encrypted_metadata TEXT, -- Base64 encoded encrypted metadata (Wormhole-inspired)
+    allowed_ips TEXT[] DEFAULT NULL, -- Canonical IP/CIDR download allowlist; NULL means unrestricted
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Backfill for databases created before allowed_ips existed. NOTE: views
+-- expand SELECT * at creation time, so active_files must be recreated too
+-- (statement below, same definition as further down this file).
+ALTER TABLE files ADD COLUMN IF NOT EXISTS allowed_ips TEXT[] DEFAULT NULL;
+CREATE OR REPLACE VIEW active_files AS
+SELECT
+    *,
+    (expires_at < CURRENT_TIMESTAMP) AS is_expired
+FROM files
+WHERE is_active = true;
 
 -- Download logs table
 CREATE TABLE IF NOT EXISTS download_logs (

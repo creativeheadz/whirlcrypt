@@ -7,6 +7,8 @@ export interface FileMetadata {
   expiresAt: Date;
   downloadCount: number;
   maxDownloads?: number;
+  /** Canonical IP/CIDR entries; absent or empty means unrestricted. */
+  allowedIps?: string[];
   // Extended fields for internal use
   encryptedSize?: number;
   storagePath?: string;

@@ -82,6 +82,13 @@ paths:
                   default: 24
                   description: File retention period in hours
                   example: 48
+                allowedIps:
+                  type: string
+                  description: >
+                    Optional comma-separated IPs or CIDR ranges (max 10) allowed
+                    to download. Requests from other IPs get a 404. Omit or leave
+                    blank for no restriction.
+                  example: "203.0.113.7, 198.51.100.0/24"
       responses:
         '201':
           description: File uploaded successfully

@@ -16,6 +16,7 @@
 - **RFC 8188 compliance**: Uses industry-standard Encrypted Content-Encoding for HTTP
 - **Zero server access**: Encryption keys never leave your browser
 - **Automatic expiration**: Files are automatically deleted after retention period
+- **IP-restricted downloads**: Optionally limit each upload to specific IPs or CIDR ranges
 - **No tracking**: No ads, analytics, or user tracking
 - **Modern UI**: Beautiful glassmorphism design with animated geometric background
 - **Mobile friendly**: Works seamlessly on all devices

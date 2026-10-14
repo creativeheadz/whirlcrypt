@@ -41,15 +41,16 @@ export class FileManager {
    * Store encrypted file and metadata
    */
   async storeFile(
-    encryptedData: Buffer, 
-    originalFilename: string, 
+    encryptedData: Buffer,
+    originalFilename: string,
     contentType: string,
-    retentionHours?: number
+    retentionHours?: number,
+    allowedIps?: string[]
   ): Promise<FileMetadata> {
     const fileId = randomUUID();
     const uploadDate = new Date();
     const expiresAt = new Date(
-      uploadDate.getTime() + 
+      uploadDate.getTime() +
       (retentionHours || config.retention.defaultRetentionHours) * 60 * 60 * 1000
     );
 
@@ -60,7 +61,8 @@ export class FileManager {
       contentType,
       uploadDate,
       expiresAt,
-      downloadCount: 0
+      downloadCount: 0,
+      ...(allowedIps && allowedIps.length > 0 ? { allowedIps } : {})
     };
 
     // Store encrypted file data
@@ -80,6 +82,7 @@ export class FileManager {
    * on success via rename (with cross-fs copy+unlink fallback).
    * Extra V2-only parameters (maxDownloads/uploaderIP/userAgent) are accepted
    * for signature compatibility but not stored by this legacy provider.
+   * allowedIps IS stored: the download route enforces it on both providers.
    */
   async storeFileFromPath(
     sourcePath: string,
@@ -89,7 +92,8 @@ export class FileManager {
     retentionHours?: number,
     _maxDownloads?: number,
     _uploaderIP?: string,
-    _userAgent?: string
+    _userAgent?: string,
+    allowedIps?: string[]
   ): Promise<FileMetadata> {
     const fileId = randomUUID();
     const uploadDate = new Date();
@@ -105,7 +109,8 @@ export class FileManager {
       contentType,
       uploadDate,
       expiresAt,
-      downloadCount: 0
+      downloadCount: 0,
+      ...(allowedIps && allowedIps.length > 0 ? { allowedIps } : {})
     };
 
     const filePath = join(this.uploadDir, fileId);

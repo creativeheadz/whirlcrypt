@@ -5,6 +5,7 @@ import { join } from 'path';
 import { config } from '../config/config';
 import { UploadResponse } from '../types';
 import { getFileManager } from '../services/fileManagerService';
+import { parseAllowedIps } from '../utils/ipAllowlist';
 
 const router = Router();
 
@@ -81,6 +82,18 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       }
     }
 
+    let allowedIps: string[] | undefined;
+    if (req.body.allowedIps !== undefined && String(req.body.allowedIps).trim() !== '') {
+      const parsed = parseAllowedIps(req.body.allowedIps);
+      if (!parsed.ok) {
+        await safeUnlink(tempPath);
+        return res.status(400).json({ error: parsed.error });
+      }
+      if (parsed.ips.length > 0) {
+        allowedIps = parsed.ips;
+      }
+    }
+
     const fileManager = getFileManager();
     const metadata = await fileManager.storeFileFromPath(
       req.file.path,
@@ -90,7 +103,8 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       retentionHours,
       maxDownloads,
       req.ip,                // uploaderIP for encrypted metadata
-      req.headers['user-agent'] // userAgent for encrypted metadata
+      req.headers['user-agent'], // userAgent for encrypted metadata
+      allowedIps
     );
 
     const response: UploadResponse = {

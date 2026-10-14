@@ -40,6 +40,8 @@ Content-Type: multipart/form-data
   key: string,                   // Hex-encoded encryption key
   salt: string,                  // Hex-encoded salt
   retentionHours?: number        // Optional, defaults to 24
+  allowedIps?: string           // Optional, comma-separated IPs/CIDRs (max 10).
+                                // When set, downloads from other IPs get a 404.
 }
 ```
 
@@ -53,7 +55,7 @@ Content-Type: multipart/form-data
 ```
 
 **Error Responses:**
-- `400` - Missing file, invalid retention period, or missing encryption params
+- `400` - Missing file, invalid retention period, invalid IP allowlist, or missing encryption params
 - `413` - File too large (>100MB default)
 - `429` - Rate limit exceeded
 - `500` - Upload failed

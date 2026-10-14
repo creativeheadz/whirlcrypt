@@ -3,8 +3,23 @@ import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { getFileManager } from '../services/fileManagerService';
 import { downloadRateLimitMiddleware } from '../middleware/security';
+import { isIpAllowed } from '../utils/ipAllowlist';
+import { FileMetadata } from '../types';
 
 const router = Router();
+
+/**
+ * Per-upload IP allowlist gate. Files without a list are public to anyone
+ * with the link; restricted files answer 404 to everyone else so blocked
+ * clients cannot even tell the file exists. Call before spending any
+ * download budget (max-downloads) or streaming bytes.
+ */
+export function isAllowedForIp(req: Request, metadata: FileMetadata): boolean {
+  if (!metadata.allowedIps || metadata.allowedIps.length === 0) {
+    return true;
+  }
+  return isIpAllowed(req.ip || '', metadata.allowedIps);
+}
 
 /**
  * Download and decrypt file
@@ -30,6 +45,11 @@ router.get('/:id', downloadRateLimitMiddleware, async (req: Request, res: Respon
     const metadata = await fileManager.getMetadata(id);
     if (!metadata) {
       return res.status(404).json({ error: 'File not found' });
+    }
+
+    if (!isAllowedForIp(req, metadata)) {
+      console.log(`Blocked download of ${id} from non-allowlisted IP ${req.ip}`);
+      return res.status(404).json({ error: 'File not found or expired' });
     }
 
     // Increment download counter and log download (if supported by the file manager)
@@ -112,6 +132,10 @@ router.get('/:id/info', async (req: Request, res: Response) => {
     const metadata = await fileManager.getMetadata(id);
     if (!metadata) {
       return res.status(404).json({ error: 'File not found' });
+    }
+
+    if (!isAllowedForIp(req, metadata)) {
+      return res.status(404).json({ error: 'File not found or expired' });
     }
 
     // Return safe metadata (no sensitive info)
