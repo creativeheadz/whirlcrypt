@@ -4,6 +4,10 @@ import rateLimit from 'express-rate-limit';
 import { randomBytes } from 'crypto';
 import { config } from '../config/config';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('middleware/security');
+
 /**
  * Generate CSP nonce for inline scripts/styles
  */
@@ -69,7 +73,7 @@ export const handleCSPViolation = (req: Request, res: Response) => {
   const violation = req.body;
 
   // Log CSP violations for security monitoring
-  console.warn('CSP Violation Report:', {
+  log.warn('CSP Violation Report:', {
     timestamp: new Date().toISOString(),
     userAgent: req.headers['user-agent'],
     ip: req.ip,

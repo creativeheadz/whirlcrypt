@@ -6,6 +6,10 @@ import { downloadRateLimitMiddleware } from '../middleware/security';
 import { isIpAllowed } from '../utils/ipAllowlist';
 import { FileMetadata } from '../types';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('routes/download');
+
 const router = Router();
 
 /**
@@ -48,7 +52,7 @@ router.get('/:id', downloadRateLimitMiddleware, async (req: Request, res: Respon
     }
 
     if (!isAllowedForIp(req, metadata)) {
-      console.log(`Blocked download of ${id} from non-allowlisted IP ${req.ip}`);
+      log.info(`Blocked download of ${id} from non-allowlisted IP ${req.ip}`);
       return res.status(404).json({ error: 'File not found or expired' });
     }
 
@@ -80,7 +84,7 @@ router.get('/:id', downloadRateLimitMiddleware, async (req: Request, res: Respon
           return;
         }
       } catch (streamError) {
-        console.warn('Streaming failed, falling back to buffer method:', streamError);
+        log.warn('Streaming failed, falling back to buffer method:', streamError);
       }
     }
 
@@ -97,11 +101,11 @@ router.get('/:id', downloadRateLimitMiddleware, async (req: Request, res: Respon
     res.send(encryptedData);
 
   } catch (error) {
-    console.error('Download error for file ID:', req.params.id, error);
+    log.error('Download error for file ID:', req.params.id, error);
 
     // More detailed error logging
     if (error instanceof Error) {
-      console.error('Error details:', {
+      log.error('Error details:', {
         message: error.message,
         stack: error.stack,
         name: error.name
@@ -149,7 +153,7 @@ router.get('/:id/info', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Info error:', error);
+    log.error('Info error:', error);
     res.status(500).json({ error: 'Failed to get file info' });
   }
 });

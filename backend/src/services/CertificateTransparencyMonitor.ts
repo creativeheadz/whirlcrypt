@@ -1,6 +1,10 @@
 import axios from 'axios';
 import { createHash } from 'crypto';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('services/CertificateTransparencyMonitor');
+
 /**
  * Certificate Transparency Monitor - Wormhole-inspired security monitoring
  * Monitors CT logs for certificate misissuance and potential attacks
@@ -67,7 +71,7 @@ export class CertificateTransparencyMonitor {
   addDomain(domain: string): void {
     if (!this.monitoredDomains.includes(domain)) {
       this.monitoredDomains.push(domain);
-      console.log(`Added domain to CT monitoring: ${domain}`);
+      log.info(`Added domain to CT monitoring: ${domain}`);
     }
   }
 
@@ -78,7 +82,7 @@ export class CertificateTransparencyMonitor {
     const index = this.monitoredDomains.indexOf(domain);
     if (index > -1) {
       this.monitoredDomains.splice(index, 1);
-      console.log(`Removed domain from CT monitoring: ${domain}`);
+      log.info(`Removed domain from CT monitoring: ${domain}`);
     }
   }
 
@@ -100,11 +104,11 @@ export class CertificateTransparencyMonitor {
         
         // Alert on new certificates
         if (result.newCertificates > 0) {
-          console.log(`Found ${result.newCertificates} new certificates for ${domain}`);
+          log.info(`Found ${result.newCertificates} new certificates for ${domain}`);
         }
         
       } catch (error) {
-        console.error(`CT monitoring failed for ${domain}:`, error);
+        log.error(`CT monitoring failed for ${domain}:`, error);
       }
     }
     
@@ -115,7 +119,7 @@ export class CertificateTransparencyMonitor {
    * Monitor a specific domain for certificates
    */
   async monitorDomain(domain: string): Promise<CTMonitoringResult> {
-    console.log(`Monitoring CT logs for domain: ${domain}`);
+    log.info(`Monitoring CT logs for domain: ${domain}`);
     
     const allCertificates: CTLogEntry[] = [];
     const suspiciousCertificates: CTLogEntry[] = [];
@@ -145,7 +149,7 @@ export class CertificateTransparencyMonitor {
         
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.warn(`Failed to query CT log ${logUrl}:`, message);
+        log.warn(`Failed to query CT log ${logUrl}:`, message);
       }
     }
 
@@ -196,7 +200,7 @@ export class CertificateTransparencyMonitor {
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`Failed to query ${logUrl}:`, message);
+      log.warn(`Failed to query ${logUrl}:`, message);
       return [];
     }
   }
@@ -254,16 +258,16 @@ export class CertificateTransparencyMonitor {
    * Alert on suspicious certificates
    */
   private async alertSuspiciousCertificates(domain: string, certificates: CTLogEntry[]): Promise<void> {
-    console.warn(`SUSPICIOUS CERTIFICATES DETECTED for ${domain}:`);
+    log.warn(`SUSPICIOUS CERTIFICATES DETECTED for ${domain}:`);
     
     for (const cert of certificates) {
       if (cert.certificate) {
-        console.warn(`  - Subject: ${cert.certificate.subject}`);
-        console.warn(`  - Issuer: ${cert.certificate.issuer}`);
-        console.warn(`  - SANs: ${cert.certificate.subjectAltNames.join(', ')}`);
-        console.warn(`  - Fingerprint: ${cert.certificate.fingerprint}`);
-        console.warn(`  - Issued: ${cert.certificate.notBefore.toISOString()}`);
-        console.warn('  ---');
+        log.warn(`  - Subject: ${cert.certificate.subject}`);
+        log.warn(`  - Issuer: ${cert.certificate.issuer}`);
+        log.warn(`  - SANs: ${cert.certificate.subjectAltNames.join(', ')}`);
+        log.warn(`  - Fingerprint: ${cert.certificate.fingerprint}`);
+        log.warn(`  - Issued: ${cert.certificate.notBefore.toISOString()}`);
+        log.warn('  ---');
       }
     }
 
@@ -294,6 +298,6 @@ export class CertificateTransparencyMonitor {
    */
   clearCache(): void {
     this.knownCertificates.clear();
-    console.log('Cleared CT monitoring certificate cache');
+    log.info('Cleared CT monitoring certificate cache');
   }
 }

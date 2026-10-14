@@ -1,6 +1,10 @@
 import { randomBytes, createCipheriv, createDecipheriv, createHmac } from 'crypto';
 import { DEFAULT_METADATA_KEY } from '../config/defaultSecrets';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('services/MetadataEncryption');
+
 /**
  * Metadata Encryption Service - Wormhole-inspired approach
  * Encrypts sensitive file metadata using AES-GCM with derived keys
@@ -43,7 +47,7 @@ export class MetadataEncryption {
       throw new Error('METADATA_ENCRYPTION_KEY must be set in production');
     }
     if (!this.warnedAboutDefaultKey) {
-      console.warn('METADATA_ENCRYPTION_KEY is not set - using insecure development default');
+      log.warn('METADATA_ENCRYPTION_KEY is not set - using insecure development default');
       this.warnedAboutDefaultKey = true;
     }
     return DEFAULT_METADATA_KEY;
@@ -114,7 +118,7 @@ export class MetadataEncryption {
       };
       
     } catch (error) {
-      console.error('Metadata encryption failed:', error);
+      log.error('Metadata encryption failed:', error);
       throw new Error('Failed to encrypt metadata');
     }
   }
@@ -152,7 +156,7 @@ export class MetadataEncryption {
       };
       
     } catch (error) {
-      console.error('Metadata decryption failed:', error);
+      log.error('Metadata decryption failed:', error);
       throw new Error('Failed to decrypt metadata');
     }
   }
@@ -248,7 +252,7 @@ export class MetadataEncryption {
              decrypted.fileSize === testMetadata.fileSize;
              
     } catch (error) {
-      console.error('Metadata encryption validation failed:', error);
+      log.error('Metadata encryption validation failed:', error);
       return false;
     }
   }

@@ -11,6 +11,10 @@ import {
   ProviderHealth
 } from '../interfaces';
 
+import { createLogger } from '../../utils/logger';
+
+const log = createLogger('storage/providers/LocalStorageProvider');
+
 export class LocalStorageProvider implements StorageProvider {
   readonly name = 'local';
   readonly type: StorageProviderType = 'local';
@@ -142,12 +146,12 @@ export class LocalStorageProvider implements StorageProvider {
     }
 
     try {
-      console.log(`Attempting to retrieve file from: ${fullPath}`);
+      log.info(`Attempting to retrieve file from: ${fullPath}`);
       const data = await fs.readFile(fullPath);
-      console.log(`Successfully retrieved file, size: ${data.length} bytes`);
+      log.info(`Successfully retrieved file, size: ${data.length} bytes`);
       return data;
     } catch (error: any) {
-      console.error(`Error retrieving file from ${fullPath}:`, error);
+      log.error(`Error retrieving file from ${fullPath}:`, error);
       if (error.code === 'ENOENT') {
         throw new Error(`File not found: ${storagePath}`);
       }
@@ -181,7 +185,7 @@ export class LocalStorageProvider implements StorageProvider {
     } catch (error: any) {
       // Ignore if metadata file doesn't exist
       if (error.code !== 'ENOENT') {
-        console.warn(`Failed to delete metadata file: ${metadataPath}`, error);
+        log.warn(`Failed to delete metadata file: ${metadataPath}`, error);
       }
     }
 

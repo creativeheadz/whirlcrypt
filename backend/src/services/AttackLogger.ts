@@ -2,6 +2,10 @@ import { Pool } from 'pg';
 import { DatabaseConnection } from '../database/connection';
 import { AttackInfo } from '../middleware/attackDetection';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('services/AttackLogger');
+
 export interface AttackLogEntry {
   id: string;
   ip: string;
@@ -66,9 +70,9 @@ export class AttackLogger {
 
     try {
       await this.pool.query(query, values);
-      console.log(`Attack logged: ${attackInfo.ip} -> ${attackInfo.path} (${attackInfo.category})`);
+      log.info(`Attack logged: ${attackInfo.ip} -> ${attackInfo.path} (${attackInfo.category})`);
     } catch (error) {
-      console.error('Error logging attack:', error);
+      log.error('Error logging attack:', error);
     }
   }
 
@@ -100,7 +104,7 @@ export class AttackLogger {
     try {
       await this.pool.query(query, values);
     } catch (error) {
-      console.error('Error logging 404:', error);
+      log.error('Error logging 404:', error);
     }
   }
 
@@ -121,7 +125,7 @@ export class AttackLogger {
       const result = await this.pool.query(query, [ip, minutesBack]);
       return parseInt(result.rows[0].count);
     } catch (error) {
-      console.error('Error getting recent attempts:', error);
+      log.error('Error getting recent attempts:', error);
       return 0;
     }
   }
@@ -195,7 +199,7 @@ export class AttackLogger {
         }))
       };
     } catch (error) {
-      console.error('Error getting attack stats:', error);
+      log.error('Error getting attack stats:', error);
       return {
         totalAttacks: 0,
         attacksToday: 0,
@@ -229,7 +233,7 @@ export class AttackLogger {
         count: parseInt(row.count)
       }));
     } catch (error) {
-      console.error('Error getting attacks by time:', error);
+      log.error('Error getting attacks by time:', error);
       return [];
     }
   }
@@ -253,7 +257,7 @@ export class AttackLogger {
         count: parseInt(row.count)
       }));
     } catch (error) {
-      console.error('Error getting attacks by country:', error);
+      log.error('Error getting attacks by country:', error);
       return [];
     }
   }
@@ -274,7 +278,7 @@ export class AttackLogger {
         return country.trim();
       }
     } catch (error) {
-      console.error('Error getting country for IP:', error);
+      log.error('Error getting country for IP:', error);
     }
     */
     
@@ -295,12 +299,12 @@ export class AttackLogger {
       const deletedCount = result.rowCount || 0;
       
       if (deletedCount > 0) {
-        console.log(`Cleaned up ${deletedCount} old attack logs`);
+        log.info(`Cleaned up ${deletedCount} old attack logs`);
       }
       
       return deletedCount;
     } catch (error) {
-      console.error('Error cleaning up old logs:', error);
+      log.error('Error cleaning up old logs:', error);
       return 0;
     }
   }

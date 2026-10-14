@@ -2,6 +2,10 @@ import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { JWTManager, JWTPayload } from './jwt';
 import { AdminUserRepository, AdminSessionRepository, AdminAuditRepository } from '../database/models/AdminUser';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('auth/middleware');
+
 // Extend Express Request interface to include admin user info
 declare global {
   namespace Express {
@@ -133,7 +137,7 @@ export class AuthMiddleware {
 
       next();
     } catch (error) {
-      console.error('Auth middleware error:', error);
+      log.error('Auth middleware error:', error);
       await AuthMiddleware.logFailedAuth(req, `Internal error: ${(error as Error).message}`);
       res.status(500).json({
         error: 'Internal server error',
@@ -197,11 +201,11 @@ export class AuthMiddleware {
               }
             });
           } catch (auditError) {
-            console.error('Failed to log admin action:', auditError);
+            log.error('Failed to log admin action:', auditError);
           }
         });
       } catch (error) {
-        console.error('Action logging middleware error:', error);
+        log.error('Action logging middleware error:', error);
         next();
       }
     };
@@ -309,7 +313,7 @@ export class AuthMiddleware {
         }
       });
     } catch (error) {
-      console.error('Failed to log authentication failure:', error);
+      log.error('Failed to log authentication failure:', error);
     }
   }
 }
@@ -328,7 +332,7 @@ export function withAuth(handler: AuthenticatedRequestHandler): RequestHandler {
     try {
       await handler(req, res, next);
     } catch (error) {
-      console.error('Authenticated route handler error:', error);
+      log.error('Authenticated route handler error:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Request processing failed'

@@ -3,6 +3,10 @@ import crypto from 'crypto';
 import { AdminUser } from '../database/models/AdminUser';
 import { DEFAULT_JWT_SECRET } from '../config/defaultSecrets';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('auth/jwt');
+
 export interface JWTPayload {
   userId: string;
   username: string;
@@ -228,8 +232,8 @@ if (!configValidation.valid) {
       criticalErrors.map((error) => `   - ${error}`).join('\n')
     );
   }
-  console.warn('JWT Configuration Issues:');
+  log.warn('JWT Configuration Issues:');
   configValidation.errors.forEach(error => {
-    console.warn(`   - ${error}`);
+    log.warn(`   - ${error}`);
   });
 }

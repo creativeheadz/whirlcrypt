@@ -3,6 +3,10 @@ import ipaddr, { IPv6 } from 'ipaddr.js';
 import { DatabaseConnection } from '../database/connection';
 import { AttackInfo } from '../middleware/attackDetection';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('services/BanManager');
+
 export interface BanEntry {
   id: string;
   ip: string;
@@ -100,7 +104,7 @@ export class BanManager {
       const result = await this.pool.query(query, [ip]);
       return result.rows.length > 0;
     } catch (error) {
-      console.error('Error checking ban status:', error);
+      log.error('Error checking ban status:', error);
       return false;
     }
   }
@@ -111,7 +115,7 @@ export class BanManager {
   async permanentBan(ip: string, attackInfo: AttackInfo): Promise<void> {
     // Never ban whitelisted IPs
     if (this.isIPWhitelisted(ip)) {
-      console.log(`Skipping ban for whitelisted IP: ${ip}`);
+      log.info(`Skipping ban for whitelisted IP: ${ip}`);
       return;
     }
     const query = `
@@ -145,9 +149,9 @@ export class BanManager {
 
     try {
       await this.pool.query(query, values);
-      console.log(`PERMANENT BAN: ${ip} for ${attackInfo.category} (${attackInfo.path})`);
+      log.info(`PERMANENT BAN: ${ip} for ${attackInfo.category} (${attackInfo.path})`);
     } catch (error) {
-      console.error('Error applying permanent ban:', error);
+      log.error('Error applying permanent ban:', error);
     }
   }
 
@@ -157,7 +161,7 @@ export class BanManager {
   async temporaryBan(ip: string, attackInfo: AttackInfo, durationMinutes: number): Promise<void> {
     // Never ban whitelisted IPs
     if (this.isIPWhitelisted(ip)) {
-      console.log(`Skipping temporary ban for whitelisted IP: ${ip}`);
+      log.info(`Skipping temporary ban for whitelisted IP: ${ip}`);
       return;
     }
     const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
@@ -200,9 +204,9 @@ export class BanManager {
 
     try {
       await this.pool.query(query, values);
-      console.log(`TEMPORARY BAN: ${ip} for ${durationMinutes} minutes (${attackInfo.path})`);
+      log.info(`TEMPORARY BAN: ${ip} for ${durationMinutes} minutes (${attackInfo.path})`);
     } catch (error) {
-      console.error('Error applying temporary ban:', error);
+      log.error('Error applying temporary ban:', error);
     }
   }
 
@@ -242,7 +246,7 @@ export class BanManager {
 
       return { permanentBans, temporaryBans };
     } catch (error) {
-      console.error('Error getting Wall of Shame entries:', error);
+      log.error('Error getting Wall of Shame entries:', error);
       return { permanentBans: [], temporaryBans: [] };
     }
   }
@@ -383,12 +387,12 @@ export class BanManager {
       const cleanedCount = result.rowCount || 0;
       
       if (cleanedCount > 0) {
-        console.log(`Cleaned up ${cleanedCount} expired bans`);
+        log.info(`Cleaned up ${cleanedCount} expired bans`);
       }
       
       return cleanedCount;
     } catch (error) {
-      console.error('Error cleaning up expired bans:', error);
+      log.error('Error cleaning up expired bans:', error);
       return 0;
     }
   }
@@ -408,12 +412,12 @@ export class BanManager {
       const unbanned = (result.rowCount || 0) > 0;
       
       if (unbanned) {
-        console.log(`Manually unbanned IP: ${ip}`);
+        log.info(`Manually unbanned IP: ${ip}`);
       }
       
       return unbanned;
     } catch (error) {
-      console.error('Error unbanning IP:', error);
+      log.error('Error unbanning IP:', error);
       return false;
     }
   }

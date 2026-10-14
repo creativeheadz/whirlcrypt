@@ -2,6 +2,10 @@ import { Pool, Client, PoolConfig } from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('database/connection');
+
 /**
  * Quote a Postgres identifier for the bootstrap DDL in createDatabase().
  * Env-provided database/user names must be plain identifiers; anything
@@ -51,17 +55,17 @@ export class DatabaseConnection {
       
       // Handle pool errors
       this.pool.on('error', (err: Error) => {
-        console.error('Unexpected error on idle database client:', err);
+        log.error('Unexpected error on idle database client:', err);
       });
 
       // Log pool events in development
       if (process.env.NODE_ENV === 'development') {
         this.pool.on('connect', () => {
-          console.log('New database client connected');
+          log.info('New database client connected');
         });
         
         this.pool.on('remove', () => {
-          console.log('Database client removed');
+          log.info('Database client removed');
         });
       }
     }
@@ -77,7 +81,7 @@ export class DatabaseConnection {
       client.release();
       return true;
     } catch (error) {
-      console.error('Database connection test failed:', error);
+      log.error('Database connection test failed:', error);
       return false;
     }
   }
@@ -92,12 +96,12 @@ export class DatabaseConnection {
       
       try {
         await client.query(schema);
-        console.log('Database schema initialized successfully');
+        log.info('Database schema initialized successfully');
       } finally {
         client.release();
       }
     } catch (error) {
-      console.error('Failed to initialize database schema:', error);
+      log.error('Failed to initialize database schema:', error);
       throw error;
     }
   }
@@ -127,17 +131,17 @@ export class DatabaseConnection {
       if (result.rows.length === 0) {
         // Create database
         await adminClient.query(`CREATE DATABASE ${quotedDb}`);
-        console.log(`Database "${dbName}" created successfully`);
+        log.info(`Database "${dbName}" created successfully`);
 
         // Create user if not exists
         try {
           await adminClient.query(
             `CREATE USER ${quotedUser} WITH PASSWORD ${quotedPassword}`
           );
-          console.log(`User "${config.user}" created successfully`);
+          log.info(`User "${config.user}" created successfully`);
         } catch (userError: any) {
           if (userError.code === '42710') { // User already exists
-            console.log(`User "${config.user}" already exists`);
+            log.info(`User "${config.user}" already exists`);
           } else {
             throw userError;
           }
@@ -145,9 +149,9 @@ export class DatabaseConnection {
 
         // Grant privileges
         await adminClient.query(`GRANT ALL PRIVILEGES ON DATABASE ${quotedDb} TO ${quotedUser}`);
-        console.log(`Privileges granted to "${config.user}"`);
+        log.info(`Privileges granted to "${config.user}"`);
       } else {
-        console.log(`Database "${dbName}" already exists`);
+        log.info(`Database "${dbName}" already exists`);
       }
     } finally {
       await adminClient.end();
@@ -158,7 +162,7 @@ export class DatabaseConnection {
     if (this.pool) {
       await this.pool.end();
       this.pool = null;
-      console.log('Database pool closed');
+      log.info('Database pool closed');
     }
   }
 

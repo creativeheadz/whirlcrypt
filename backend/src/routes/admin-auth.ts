@@ -5,6 +5,10 @@ import { authRateLimit, requireAuth, logAction, withAuth, AuthenticatedRequest }
 import { AdminUserRepository, AdminSessionRepository, AdminAuditRepository } from '../database/models/AdminUser';
 import QRCode from 'qrcode';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('routes/admin-auth');
+
 const router = express.Router();
 const userRepo = new AdminUserRepository();
 const sessionRepo = new AdminSessionRepository();
@@ -198,7 +202,7 @@ router.post('/login', loginRateLimit, async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Login error:', error);
+    log.error('Login error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Authentication service unavailable'
@@ -322,7 +326,7 @@ router.post('/verify-mfa', loginRateLimit, async (req: Request, res: Response) =
       }
     });
   } catch (error) {
-    console.error('MFA verification error:', error);
+    log.error('MFA verification error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'MFA verification service unavailable'
@@ -346,7 +350,7 @@ router.post('/logout', requireAuth, logAction('LOGOUT'), withAuth(async (req: Au
       message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('Logout error:', error);
+    log.error('Logout error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Logout service unavailable'
@@ -367,7 +371,7 @@ router.post('/logout-all', requireAuth, logAction('LOGOUT_ALL'), withAuth(async 
       sessionsTerminated: deletedCount
     });
   } catch (error) {
-    console.error('Logout all error:', error);
+    log.error('Logout all error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Logout service unavailable'
@@ -400,7 +404,7 @@ router.get('/me', requireAuth, withAuth(async (req: AuthenticatedRequest, res: R
       }
     });
   } catch (error) {
-    console.error('Get user info error:', error);
+    log.error('Get user info error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'User service unavailable'
@@ -431,7 +435,7 @@ router.post('/refresh', requireAuth, withAuth(async (req: AuthenticatedRequest, 
       expiresAt: expiresAt.toISOString()
     });
   } catch (error) {
-    console.error('Token refresh error:', error);
+    log.error('Token refresh error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Token refresh service unavailable'
@@ -455,7 +459,7 @@ router.get('/sessions', requireAuth, withAuth(async (req: AuthenticatedRequest, 
       message: 'Session management coming soon'
     });
   } catch (error) {
-    console.error('Get sessions error:', error);
+    log.error('Get sessions error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Session service unavailable'
@@ -495,7 +499,7 @@ router.get('/mfa/setup', requireAuth, withAuth(async (req: AuthenticatedRequest,
       otpauthUrl
     });
   } catch (error) {
-    console.error('MFA setup error:', error);
+    log.error('MFA setup error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'MFA setup service unavailable'

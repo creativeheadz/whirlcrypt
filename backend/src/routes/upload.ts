@@ -7,6 +7,10 @@ import { UploadResponse } from '../types';
 import { getFileManager } from '../services/fileManagerService';
 import { parseAllowedIps } from '../utils/ipAllowlist';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('routes/upload');
+
 const router = Router();
 
 // Multer writes uploads to a tempdir on the same filesystem as the storage path
@@ -118,7 +122,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     // Storage threw before consuming the temp file (or did so partially) — clean it up.
     await safeUnlink(tempPath);
 
-    console.error('Upload error:', error);
+    log.error('Upload error:', error);
 
     if (error instanceof multer.MulterError) {
       if (error.code === 'LIMIT_FILE_SIZE') {

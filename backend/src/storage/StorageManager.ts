@@ -2,6 +2,10 @@ import { StorageProvider, StorageProviderType, StorageConfig } from './interface
 import { LocalStorageProvider } from './providers/LocalStorageProvider';
 import { config } from '../config/config';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('storage/StorageManager');
+
 export class StorageManager {
   private providers: Map<string, StorageProvider> = new Map();
   private defaultProvider!: StorageProvider;
@@ -34,7 +38,7 @@ export class StorageManager {
         throw new Error(`Unsupported storage provider: ${providerType}`);
     }
 
-    console.log(`Storage initialized with provider: ${providerType}`);
+    log.info(`Storage initialized with provider: ${providerType}`);
   }
 
   getProvider(name?: string): StorageProvider {
@@ -77,7 +81,7 @@ export class StorageManager {
       try {
         await provider.cleanup();
       } catch (error) {
-        console.error('Error cleaning up storage provider:', error);
+        log.error('Error cleaning up storage provider:', error);
       }
     }
     

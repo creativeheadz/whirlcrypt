@@ -9,6 +9,10 @@ import { MetadataEncryption, FileMetadataToEncrypt } from '../services/MetadataE
 import { sanitizeForLog } from '../utils/filename';
 import { resolveWithinBase } from '../utils/storagePath';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('storage/FileManagerV2');
+
 export class FileManagerV2 {
   private storageManager: StorageManager;
   private fileRepository: FileRepository;
@@ -20,7 +24,7 @@ export class FileManagerV2 {
 
   async initialize(): Promise<void> {
     await this.storageManager.initialize();
-    console.log('FileManagerV2 initialized');
+    log.info('FileManagerV2 initialized');
   }
 
   /**
@@ -82,7 +86,7 @@ export class FileManagerV2 {
 
     const fileMetadata = await this.fileRepository.create(createData);
 
-    console.log(`File stored: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
+    log.info(`File stored: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
     return fileMetadata;
   }
 
@@ -145,7 +149,7 @@ export class FileManagerV2 {
 
     const fileMetadata = await this.fileRepository.create(createData);
 
-    console.log(`File stored from path: ${fileId} (${fileSize} bytes, encrypted metadata) - expires ${expiresAt.toISOString()}`);
+    log.info(`File stored from path: ${fileId} (${fileSize} bytes, encrypted metadata) - expires ${expiresAt.toISOString()}`);
     return fileMetadata;
   }
 
@@ -173,7 +177,7 @@ export class FileManagerV2 {
         const deserializedMetadata = MetadataEncryption.deserializeEncryptedMetadata(fileMetadata.encryptedMetadata);
         decryptedMetadata = MetadataEncryption.decryptMetadata(deserializedMetadata);
       } catch (error) {
-        console.error('Failed to decrypt metadata for file:', fileId, error);
+        log.error('Failed to decrypt metadata for file:', fileId, error);
         // Continue without decrypted metadata rather than failing completely
       }
     }
@@ -197,7 +201,7 @@ export class FileManagerV2 {
       const data = await this.storageManager.retrieve(metadata.storagePath);
       return data;
     } catch (error: any) {
-      console.error('Error retrieving file data for:', fileId, error);
+      log.error('Error retrieving file data for:', fileId, error);
       return null;
     }
   }
@@ -216,7 +220,7 @@ export class FileManagerV2 {
       if (config.storage.provider === 'local' && config.storage.local) {
         const fullPath = resolveWithinBase(config.storage.local.path, metadata.storagePath);
         if (!fullPath) {
-          console.error('Refusing to stream file with escaping storage path:', fileId);
+          log.error('Refusing to stream file with escaping storage path:', fileId);
           return null;
         }
         return createReadStream(fullPath);
@@ -226,7 +230,7 @@ export class FileManagerV2 {
       // For now, return null to fall back to buffer method
       return null;
     } catch (error: any) {
-      console.error('Error creating file stream for:', fileId, error);
+      log.error('Error creating file stream for:', fileId, error);
       return null;
     }
   }
@@ -257,7 +261,7 @@ export class FileManagerV2 {
     try {
       await this.fileRepository.logDownload(logData);
     } catch (error) {
-      console.error('Error logging download for:', fileId, error);
+      log.error('Error logging download for:', fileId, error);
     }
 
     // Increment counter
@@ -284,7 +288,7 @@ export class FileManagerV2 {
     try {
       await this.fileRepository.logDownload(logData);
     } catch (error) {
-      console.error(`Error logging download error for ${fileId}:`, error);
+      log.error(`Error logging download error for ${fileId}:`, error);
     }
   }
 
@@ -304,10 +308,10 @@ export class FileManagerV2 {
       // Mark as inactive in database
       await this.fileRepository.update(fileId, { isActive: false });
       
-      console.log(`File deleted: ${fileId} (${sanitizeForLog(metadata.filename)})`);
+      log.info(`File deleted: ${fileId} (${sanitizeForLog(metadata.filename)})`);
       return true;
     } catch (error: any) {
-      console.error(`Error deleting file ${fileId}:`, error);
+      log.error(`Error deleting file ${fileId}:`, error);
       return false;
     }
   }
@@ -325,9 +329,9 @@ export class FileManagerV2 {
         if (file.storagePath) {
           try {
             await this.storageManager.delete(file.storagePath);
-            console.log(`Removed expired file from storage: ${file.id} (${sanitizeForLog(file.filename)})`);
+            log.info(`Removed expired file from storage: ${file.id} (${sanitizeForLog(file.filename)})`);
           } catch (error: any) {
-            console.error(`Error removing expired file from storage ${file.id}:`, error);
+            log.error(`Error removing expired file from storage ${file.id}:`, error);
           }
         }
       }
@@ -336,12 +340,12 @@ export class FileManagerV2 {
       const cleanedCount = await this.fileRepository.cleanupExpiredFiles();
       
       if (cleanedCount > 0) {
-        console.log(`Cleaned up ${cleanedCount} expired files`);
+        log.info(`Cleaned up ${cleanedCount} expired files`);
       }
       
       return cleanedCount;
     } catch (error: any) {
-      console.error('Error during cleanup:', error);
+      log.error('Error during cleanup:', error);
       return 0;
     }
   }
@@ -467,6 +471,6 @@ export class FileManagerV2 {
    */
   async cleanup(): Promise<void> {
     await this.storageManager.cleanup();
-    console.log('FileManagerV2 cleaned up');
+    log.info('FileManagerV2 cleaned up');
   }
 }

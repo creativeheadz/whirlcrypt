@@ -1,6 +1,10 @@
 import { RetentionConfig } from '../types';
 import { COMPOSE_DEV_DB_PASSWORD, DEFAULT_DB_PASSWORD, DEFAULT_JWT_SECRET, DEFAULT_METADATA_KEY } from './defaultSecrets';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('config/config');
+
 /**
  * Secrets that must never be weak-or-default in production. Pure function of
  * (env, nodeEnv) so it can be unit-tested; the module calls it on load and
@@ -144,6 +148,6 @@ if (secretErrors.length > 0) {
   throw new Error(
     'Refusing to start in production with insecure secrets:\n' +
     secretErrors.map((e) => `  - ${e}`).join('\n') +
-    '\nGenerate values with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64\'))"'
+    '\nGenerate values with: node -e "log.info(require(\'crypto\').randomBytes(48).toString(\'base64\'))"'
   );
 }

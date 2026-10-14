@@ -7,6 +7,10 @@ import { certificateMonitoringJob } from '../jobs/certificateMonitoring';
 import { AttackLogger } from '../services/AttackLogger';
 import { BanManager } from '../services/BanManager';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('routes/admin');
+
 const router = Router();
 
 /**
@@ -48,7 +52,7 @@ router.get('/stats', requireAuth, logAction('VIEW_STATS'), withAuth(async (req: 
     });
 
   } catch (error) {
-    console.error('Stats error:', error);
+    log.error('Stats error:', error);
     const message = error instanceof Error ? error.message : 'Failed to get stats';
     res.status(500).json({ error: message });
   }
@@ -81,7 +85,7 @@ router.get('/security-summary', requireAuth, logAction('VIEW_SECURITY'), withAut
       },
     });
   } catch (error) {
-    console.error('Security summary error:', error);
+    log.error('Security summary error:', error);
     const message = error instanceof Error ? error.message : 'Failed to get security summary';
     res.status(500).json({ error: message });
   }
@@ -102,7 +106,7 @@ router.post('/cleanup', requireAuth, logAction('CLEANUP_FILES'), withAuth(async 
     });
     
   } catch (error) {
-    console.error('Cleanup error:', error);
+    log.error('Cleanup error:', error);
     const message = error instanceof Error ? error.message : 'Cleanup failed';
     res.status(500).json({ error: message });
   }
@@ -142,7 +146,7 @@ router.put('/config', requireAuth, logAction('UPDATE_CONFIG'), withAuth((req: Au
     });
 
   } catch (error) {
-    console.error('Config update error:', error);
+    log.error('Config update error:', error);
     const message = error instanceof Error ? error.message : 'Failed to update config';
     res.status(500).json({ error: message });
   }
@@ -167,7 +171,7 @@ router.get('/ct-monitor/status', requireAuth, logAction('VIEW_CT_MONITOR'), with
     });
 
   } catch (error) {
-    console.error('CT monitor status error:', error);
+    log.error('CT monitor status error:', error);
     const message = error instanceof Error ? error.message : 'Failed to get CT monitor status';
     res.status(500).json({ error: message });
   }
@@ -181,7 +185,7 @@ router.post('/ct-monitor/run', requireAuth, logAction('RUN_CT_MONITOR'), withAut
   try {
     // Run monitoring in background
     certificateMonitoringJob.forceRun().catch(error => {
-      console.error('Background CT monitoring failed:', error);
+      log.error('Background CT monitoring failed:', error);
     });
 
     res.json({
@@ -190,7 +194,7 @@ router.post('/ct-monitor/run', requireAuth, logAction('RUN_CT_MONITOR'), withAut
     });
 
   } catch (error) {
-    console.error('CT monitor run error:', error);
+    log.error('CT monitor run error:', error);
     const message = error instanceof Error ? error.message : 'Failed to run CT monitor';
     res.status(500).json({ error: message });
   }
@@ -216,7 +220,7 @@ router.post('/ct-monitor/domains', requireAuth, logAction('ADD_CT_DOMAIN'), with
     });
 
   } catch (error) {
-    console.error('CT monitor add domain error:', error);
+    log.error('CT monitor add domain error:', error);
     const message = error instanceof Error ? error.message : 'Failed to add domain';
     res.status(500).json({ error: message });
   }

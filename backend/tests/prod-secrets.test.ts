@@ -81,34 +81,36 @@ describe('MetadataEncryption master key', () => {
 
   it('falls back to the dev default with a warning outside production', () => {
     process.env.NODE_ENV = 'development';
-    const warnings: unknown[][] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args);
-    };
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    let captured = '';
+    (process.stderr as unknown as { write: (chunk: unknown) => boolean }).write = ((chunk: unknown) => {
+      captured += String(chunk);
+      return true;
+    }) as never;
     try {
       const encrypted = MetadataEncryption.encryptMetadata(sampleMetadata());
       assert.ok(encrypted.encryptedData.length > 0);
-      assert.ok(warnings.some((w) => String(w[0]).includes('development default')));
+      assert.ok(captured.includes('development default'), `stderr was: ${captured}`);
     } finally {
-      console.warn = originalWarn;
+      (process.stderr as unknown as { write: typeof process.stderr.write }).write = originalWrite;
     }
   });
 
   it('uses the configured key without warning', () => {
     process.env.NODE_ENV = 'development';
     process.env.METADATA_ENCRYPTION_KEY = 'test-key-from-env';
-    let warned = false;
-    const originalWarn = console.warn;
-    console.warn = () => {
-      warned = true;
-    };
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    let captured = '';
+    (process.stderr as unknown as { write: (chunk: unknown) => boolean }).write = ((chunk: unknown) => {
+      captured += String(chunk);
+      return true;
+    }) as never;
     try {
       const encrypted = MetadataEncryption.encryptMetadata(sampleMetadata());
       assert.ok(encrypted.encryptedData.length > 0);
-      assert.equal(warned, false);
+      assert.equal(captured, '');
     } finally {
-      console.warn = originalWarn;
+      (process.stderr as unknown as { write: typeof process.stderr.write }).write = originalWrite;
     }
   });
 });
