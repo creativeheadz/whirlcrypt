@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import ipaddr, { IPv6 } from 'ipaddr.js';
 import { DatabaseConnection } from '../database/connection';
 import { AttackInfo } from '../middleware/attackDetection';
 
@@ -51,16 +52,31 @@ export class BanManager {
   }
 
   /**
-   * Check if IP is whitelisted
+   * Check if IP is whitelisted. CIDR entries match the whole range
+   * (the old prefix check only covered e.g. 10.0.0.x of 10/8, so most
+   * private-range clients could be banned). Unparseable input is not
+   * whitelisted.
    */
   isIPWhitelisted(ip: string): boolean {
-    return this.WHITELIST_IPS.some(whitelistIP => {
-      if (whitelistIP.includes('/')) {
-        // CIDR notation - simplified check for private networks
-        const [network] = whitelistIP.split('/');
-        return ip.startsWith(network.split('.').slice(0, -1).join('.'));
+    let addr: ReturnType<typeof ipaddr.parse>;
+    try {
+      addr = ipaddr.parse(ip);
+    } catch {
+      return false;
+    }
+    if (addr.kind() === 'ipv6' && (addr as IPv6).isIPv4MappedAddress()) {
+      addr = (addr as IPv6).toIPv4Address();
+    }
+    return this.WHITELIST_IPS.some((entry) => {
+      try {
+        if (entry.includes('/')) {
+          const [network, prefix] = ipaddr.parseCIDR(entry);
+          return addr.kind() === network.kind() && addr.match(network, prefix);
+        }
+        return addr.toString() === ipaddr.parse(entry).toString();
+      } catch {
+        return false;
       }
-      return ip === whitelistIP;
     });
   }
 
