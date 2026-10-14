@@ -7,7 +7,7 @@ import JSZip from 'jszip'
 import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
 import { DEFAULT_LIMITS, resolveServerLimits, ServerLimits } from '../utils/limits'
-import { mapUploadError, readErrorMessage } from '../utils/transfer'
+import { mapUploadError, readErrorMessage, shouldWarnFolderMemory } from '../utils/transfer'
 import { copyTextToClipboard } from '../utils/clipboard'
 
 type UploadPhase = 'idle' | 'compressing' | 'encrypting' | 'awaiting-server' | 'done'
@@ -195,8 +195,9 @@ const UploadPage: React.FC = () => {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const relativePath = file.webkitRelativePath || file.name
-      const arrayBuffer = await file.arrayBuffer()
-      zip.file(relativePath, arrayBuffer)
+      // Hand JSZip the Blob itself: it reads from disk during generateAsync,
+      // so this avoids holding a second full copy (arrayBuffer) per file.
+      zip.file(relativePath, file)
       onProgress?.((i + 1) / files.length * 100)
     }
     const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
@@ -463,6 +464,11 @@ const UploadPage: React.FC = () => {
                   <div className="folio">
                     {state.files.length} files · {formatFileSize(calculateTotalSize(state.files))}
                   </div>
+                  {state.files && shouldWarnFolderMemory(calculateTotalSize(state.files)) && (
+                    <div className="folio text-ink-faint" style={{ fontSize: 10 }}>
+                      Large folder: zipped in memory before upload, may take a while on this device.
+                    </div>
+                  )}
                 </div>
                 {!state.uploading && !state.shareUrl && (
                   <div className="flex gap-2 justify-center pt-1">

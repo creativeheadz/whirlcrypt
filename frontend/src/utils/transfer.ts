@@ -39,6 +39,13 @@ export async function readErrorMessage(response: Response): Promise<string | nul
   }
 }
 
+/** Folders above this get a heads-up: zipping happens in memory first. */
+export const FOLDER_MEMORY_HINT_BYTES = 50 * 1024 * 1024;
+
+export function shouldWarnFolderMemory(totalBytes: number): boolean {
+  return Number.isFinite(totalBytes) && totalBytes > FOLDER_MEMORY_HINT_BYTES;
+}
+
 /** Best-effort read of a byte total from response headers. */
 export function readContentLength(response: Response): number | null {
   const raw = response.headers.get('Content-Length');

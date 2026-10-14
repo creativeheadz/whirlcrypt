@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { downloadProgressPercent, mapUploadError } from '../src/utils/transfer';
+import { downloadProgressPercent, mapUploadError, shouldWarnFolderMemory, FOLDER_MEMORY_HINT_BYTES } from '../src/utils/transfer';
 
 describe('downloadProgressPercent', () => {
   it('scales received bytes against the announced total', () => {
@@ -42,5 +42,14 @@ describe('mapUploadError', () => {
   it('falls back to the status when nothing else is known', () => {
     assert.equal(mapUploadError(500, null), 'Upload failed (HTTP 500).');
     assert.equal(mapUploadError(503, 'overloaded'), 'overloaded');
+  });
+});
+
+describe('shouldWarnFolderMemory', () => {
+  it('warns only above the threshold', () => {
+    assert.equal(shouldWarnFolderMemory(FOLDER_MEMORY_HINT_BYTES), false);
+    assert.equal(shouldWarnFolderMemory(FOLDER_MEMORY_HINT_BYTES + 1), true);
+    assert.equal(shouldWarnFolderMemory(0), false);
+    assert.equal(shouldWarnFolderMemory(NaN), false);
   });
 });
