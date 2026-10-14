@@ -24,10 +24,12 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 -- Backfill for databases created before allowed_ips existed. NOTE: views
--- expand SELECT * at creation time, so active_files must be recreated too
--- (statement below, same definition as further down this file).
+-- expand SELECT * at creation time, so active_files must be recreated too.
+-- DROP + CREATE (not CREATE OR REPLACE): the new *-expansion adds columns,
+-- which OR REPLACE rejects as a column rename on old view definitions.
 ALTER TABLE files ADD COLUMN IF NOT EXISTS allowed_ips TEXT[] DEFAULT NULL;
-CREATE OR REPLACE VIEW active_files AS
+DROP VIEW IF EXISTS active_files;
+CREATE VIEW active_files AS
 SELECT
     *,
     (expires_at < CURRENT_TIMESTAMP) AS is_expired
