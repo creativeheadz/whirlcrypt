@@ -30,7 +30,7 @@ info:
 servers:
   - url: http://localhost:3001/api
     description: Development server
-  - url: https://your-domain.com/api  
+  - url: https://whirlcrypt.co.uk/api
     description: Production server
 
 tags:
@@ -42,6 +42,12 @@ tags:
     description: Administrative operations
   - name: health
     description: Health check endpoints
+  - name: config
+    description: Public upload-limit discovery
+  - name: auth
+    description: Admin authentication (JWT + TOTP MFA)
+  - name: security
+    description: Security telemetry intake
 
 paths:
   /upload:
@@ -174,6 +180,8 @@ paths:
     get:
       tags: [admin]
       summary: Get storage statistics
+      security:
+        - AdminJWT: []
       description: Retrieve current storage statistics and server configuration
       responses:
         '200':
@@ -187,6 +195,8 @@ paths:
     post:
       tags: [admin]
       summary: Manual cleanup
+      security:
+        - AdminJWT: []
       description: Manually trigger cleanup of expired files
       responses:
         '200':
@@ -200,6 +210,8 @@ paths:
     get:
       tags: [admin]
       summary: Get configuration
+      security:
+        - AdminJWT: []
       description: Get current server configuration settings
       responses:
         '200':
@@ -212,6 +224,8 @@ paths:
     put:
       tags: [admin]
       summary: Update configuration
+      security:
+        - AdminJWT: []
       description: Update server configuration (runtime only, not persistent)
       requestBody:
         required: true
@@ -228,6 +242,310 @@ paths:
                 $ref: '#/components/schemas/ConfigUpdateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+
+  /config:
+    get:
+      tags: [config]
+      summary: Public upload limits
+      description: |
+        Live server limits so the uploader can check size and retention
+        before encrypting. No authentication required.
+      responses:
+        '200':
+          description: Current limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicConfig'
+
+  /admin/auth/login:
+    post:
+      tags: [auth]
+      summary: Admin login
+      description: |
+        Password login. Returns a session JWT directly when the account has
+        no MFA, otherwise a short-lived challenge token for /verify-mfa.
+        Five bad passwords lock the account for 30 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated, or MFA challenge issued
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SessionResponse'
+                  - $ref: '#/components/schemas/MfaChallenge'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/verify-mfa:
+    post:
+      tags: [auth]
+      summary: Complete MFA login
+      description: Exchange a challenge token plus TOTP code (or backup code) for a session JWT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyMfaRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/logout:
+    post:
+      tags: [auth]
+      summary: Log out this session
+      description: Revokes the current session server-side.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/logout-all:
+    post:
+      tags: [auth]
+      summary: Log out all sessions
+      description: Revokes every session for the current admin user.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: All sessions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  sessionsTerminated:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh token
+      description: Mint a fresh JWT for the current session. Requires a still-valid token.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: Fresh token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  expiresAt:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/me:
+    get:
+      tags: [auth]
+      summary: Current admin user
+      description: Profile of the authenticated admin.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/auth/sessions:
+    get:
+      tags: [auth]
+      summary: Current session info
+      description: Identifies the calling session. Full session listing is not implemented yet.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: Session info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currentSession:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      current:
+                        type: boolean
+                        example: true
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/mfa/setup:
+    get:
+      tags: [auth]
+      summary: MFA setup material
+      description: QR code, secret, and backup codes for an MFA-enabled account. Keep secret.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: MFA material
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaSetup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/security-summary:
+    get:
+      tags: [admin]
+      summary: Security telemetry counts
+      description: Attack and ban counts only. No IPs or request paths leave the server.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: Telemetry counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecuritySummary'
+
+  /admin/ct-monitor/status:
+    get:
+      tags: [admin]
+      summary: CT monitor status
+      description: Certificate Transparency monitor state and statistics.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: Monitor status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CtMonitorStatus'
+
+  /admin/ct-monitor/run:
+    post:
+      tags: [admin]
+      summary: Force CT monitor run
+      description: Starts a monitoring pass in the background; returns immediately.
+      security:
+        - AdminJWT: []
+      responses:
+        '200':
+          description: Monitoring started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+
+  /admin/ct-monitor/domains:
+    post:
+      tags: [admin]
+      summary: Add CT-monitored domain
+      description: Adds a domain to the in-memory monitor list.
+      security:
+        - AdminJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+                  example: "example.com"
+      responses:
+        '200':
+          description: Domain added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /security/csp-report:
+    post:
+      tags: [security]
+      summary: CSP violation intake
+      description: Browser reporting endpoint for Content-Security-Policy violations. Logged server-side.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Raw CSP violation report object from the browser.
+      responses:
+        '204':
+          description: Report accepted (no content)
 
   /health:
     get:
@@ -440,6 +758,161 @@ components:
           description: API version
           example: "1.0.0"
 
+    PublicConfig:
+      type: object
+      required: [maxFileSize, defaultRetentionHours, maxRetentionHours]
+      properties:
+        maxFileSize:
+          type: integer
+          description: Largest accepted upload in bytes
+          example: 104857600
+        defaultRetentionHours:
+          type: integer
+          example: 24
+        maxRetentionHours:
+          type: integer
+          example: 168
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: "admin"
+        password:
+          type: string
+          format: password
+
+    SessionResponse:
+      type: object
+      required: [token, expiresAt, user]
+      properties:
+        token:
+          type: string
+          description: Bearer [REDACTED] for the Authorization header
+        expiresAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/AdminUser'
+
+    MfaChallenge:
+      type: object
+      required: [requiresMFA, challengeToken]
+      properties:
+        requiresMFA:
+          type: boolean
+          example: true
+        challengeToken:
+          type: string
+          description: Short-lived token for /admin/auth/verify-mfa
+        message:
+          type: string
+
+    VerifyMfaRequest:
+      type: object
+      required: [challengeToken, mfaToken]
+      properties:
+        challengeToken:
+          type: string
+        mfaToken:
+          type: string
+          description: 6-digit TOTP code or a backup code
+          example: "123456"
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        mfaEnabled:
+          type: boolean
+        lastLogin:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    MfaSetup:
+      type: object
+      properties:
+        qrCode:
+          type: string
+          description: QR code PNG as a data URL
+        secret:
+          type: string
+          description: Base32 TOTP secret
+        backupCodes:
+          type: array
+          items:
+            type: string
+        otpauthUrl:
+          type: string
+
+    SecuritySummary:
+      type: object
+      properties:
+        attacksLast24h:
+          type: integer
+        totalAttacks:
+          type: integer
+        uniqueIPs:
+          type: integer
+        topCategory:
+          type: object
+          nullable: true
+          properties:
+            name:
+              type: string
+            count:
+              type: integer
+        bans:
+          type: object
+          properties:
+            permanent:
+              type: integer
+            temporary:
+              type: integer
+            total:
+              type: integer
+
+    CtMonitorStatus:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            monitoredDomains:
+              type: array
+              items:
+                type: string
+            knownCertificates:
+              type: integer
+            lastMonitoring:
+              type: string
+              format: date-time
+            isRunning:
+              type: boolean
+            lastRun:
+              type: string
+              format: date-time
+              nullable: true
+            schedule:
+              type: string
+              example: "0 */6 * * *"
+
     Error:
       type: object
       required: [error]
@@ -469,6 +942,15 @@ components:
               summary: Invalid retention period
               value:
                 error: "Retention period cannot exceed 168 hours"
+
+    Unauthorized:
+      description: Missing, invalid, expired, or revoked admin token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Authentication failed"
 
     NotFound:
       description: Resource not found or expired

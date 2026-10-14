@@ -147,6 +147,20 @@ const Admin: React.FC = () => {
     }
   }
 
+  const handleLogoutAll = async () => {
+    if (!window.confirm('Sign out every admin session on all devices?')) return
+    try {
+      await axios.post('/api/admin/auth/logout-all')
+    } catch {
+      // ignore: local session is dropped below regardless
+    } finally {
+      clearAdminToken()
+      setIsAuthenticated(false)
+      setStats(null)
+      setConfig(null)
+    }
+  }
+
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes'
     const k = 1024
@@ -194,9 +208,14 @@ const Admin: React.FC = () => {
             Files in flight, storage on disk, retention rules — all set from here.
           </p>
         </div>
-        <button onClick={handleLogout} className="btn btn-ghost">
-          <LogOut className="h-3.5 w-3.5" /> Sign out
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleLogoutAll} className="btn btn-ghost" title="Revoke all admin sessions everywhere">
+            <LogOut className="h-3.5 w-3.5" /> Sign out everywhere
+          </button>
+          <button onClick={handleLogout} className="btn btn-ghost">
+            <LogOut className="h-3.5 w-3.5" /> Sign out
+          </button>
+        </div>
       </header>
 
       {error && (
