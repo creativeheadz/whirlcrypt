@@ -127,7 +127,3 @@ small-test.txt
 # Database dumps
 *.sql.backup
 *.dump
-
-# Autopull runtime files (live server)
-autopull.log
-.autopull.lock
