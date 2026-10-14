@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { AdminUser } from '../database/models/AdminUser';
+import { DEFAULT_JWT_SECRET } from '../config/defaultSecrets';
 
 export interface JWTPayload {
   userId: string;
@@ -21,7 +22,7 @@ export interface MFAChallenge {
 }
 
 export class JWTManager {
-  private static readonly JWT_SECRET = process.env.JWT_SECRET || 'whirlcrypt-jwt-secret-change-in-production';
+  private static readonly JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
   private static readonly JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
   private static readonly MFA_CHALLENGE_EXPIRES_IN = '5m'; // 5 minutes for MFA challenge
 
@@ -193,7 +194,7 @@ export class JWTManager {
   static validateConfiguration(): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    if (this.JWT_SECRET === 'whirlcrypt-jwt-secret-change-in-production') {
+    if (this.JWT_SECRET === DEFAULT_JWT_SECRET) {
       errors.push('JWT_SECRET is using default value - change in production');
     }
 
@@ -213,24 +214,22 @@ export class JWTManager {
   }
 }
 
-// Validate configuration on module load
+// Validate configuration on module load. Production refuses to boot on a
+// weak or default secret; development warns and continues.
 const configValidation = JWTManager.validateConfiguration();
 if (!configValidation.valid) {
   const criticalErrors = configValidation.errors.filter(error =>
     error.includes('default value') || error.includes('32 characters')
   );
 
-  if (criticalErrors.length > 0) {
-    console.error('🔴 CRITICAL JWT Configuration Errors:');
-    criticalErrors.forEach(error => {
-      console.error(`   - ${error}`);
-    });
-    console.error('🔴 Application startup FAILED. Fix JWT configuration and restart.');
-    process.exit(1);
-  } else {
-    console.warn('⚠️  JWT Configuration Issues:');
-    configValidation.errors.forEach(error => {
-      console.warn(`   - ${error}`);
-    });
+  if (criticalErrors.length > 0 && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Refusing to start in production with insecure JWT configuration:\n' +
+      criticalErrors.map((error) => `   - ${error}`).join('\n')
+    );
   }
+  console.warn('JWT Configuration Issues:');
+  configValidation.errors.forEach(error => {
+    console.warn(`   - ${error}`);
+  });
 }

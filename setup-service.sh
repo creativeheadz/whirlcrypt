@@ -5,21 +5,21 @@
 
 set -e
 
-echo "🔧 Setting up Whirlcrypt as a systemd service..."
+echo "Setting up Whirlcrypt as a systemd service..."
 
 # Copy service file to systemd directory
-echo "📋 Installing service file..."
+echo "Installing service file..."
 sudo cp whirlcrypt.service /etc/systemd/system/
 
 # Reload systemd
-echo "🔄 Reloading systemd..."
+echo "Reloading systemd..."
 sudo systemctl daemon-reload
 
 # Enable the service
-echo "✅ Enabling Whirlcrypt service..."
+echo "Enabling Whirlcrypt service..."
 sudo systemctl enable whirlcrypt
 
-echo "🎉 Whirlcrypt service setup complete!"
+echo "Whirlcrypt service setup complete!"
 echo ""
 echo "Available commands:"
 echo "  sudo systemctl start whirlcrypt    # Start the service"

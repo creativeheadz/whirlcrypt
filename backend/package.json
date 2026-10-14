@@ -16,6 +16,7 @@
     "admin:audit": "ts-node src/cli/admin-cli.ts audit-log",
     "admin:init-db": "ts-node src/cli/admin-cli.ts init-db",
     "admin:create": "ts-node src/cli/create-admin.ts",
+    "test": "tsx --test tests/*.test.ts",
     "security:audit": "npm audit --audit-level=moderate",
     "security:audit-fix": "npm audit fix",
     "security:socket": "npx @socketsecurity/cli@latest audit",
@@ -40,7 +41,6 @@
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
     "swagger-ui-express": "^5.0.1",
-    "uuid": "^9.0.0",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
@@ -56,7 +56,6 @@
     "@types/qrcode": "^1.5.5",
     "@types/speakeasy": "^2.0.10",
     "@types/swagger-ui-express": "^4.1.8",
-    "@types/uuid": "^9.0.2",
     "@types/yamljs": "^0.2.34",
     "license-checker": "^25.0.1",
     "ts-node": "^10.9.2",

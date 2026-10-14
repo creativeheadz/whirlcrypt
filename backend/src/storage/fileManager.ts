@@ -1,14 +1,32 @@
 import { promises as fs } from 'fs';
-import { join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { join, resolve, sep } from 'path';
+import { randomUUID } from 'crypto';
 import { FileMetadata } from '../types';
 import { config } from '../config/config';
 
 export class FileManager {
   private static readonly METADATA_EXT = '.meta';
-  
+
   constructor(private uploadDir: string = config.storage.local?.path || './uploads') {
     this.ensureUploadDir();
+  }
+
+  /**
+   * Resolve a stored-file path from an untrusted id. Only bare filename
+   * tokens are accepted (stored ids are uuids), and the resolved path must
+   * stay inside the upload dir even if validation is ever bypassed.
+   * Returns null for invalid ids; callers treat that as "not found".
+   */
+  private resolvePath(fileId: string, suffix = ''): string | null {
+    if (typeof fileId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(fileId)) {
+      return null;
+    }
+    const base = resolve(this.uploadDir);
+    const full = resolve(base, fileId + suffix);
+    if (!full.startsWith(base + sep)) {
+      return null;
+    }
+    return full;
   }
 
   private async ensureUploadDir(): Promise<void> {
@@ -28,7 +46,7 @@ export class FileManager {
     contentType: string,
     retentionHours?: number
   ): Promise<FileMetadata> {
-    const fileId = uuidv4();
+    const fileId = randomUUID();
     const uploadDate = new Date();
     const expiresAt = new Date(
       uploadDate.getTime() + 
@@ -73,7 +91,7 @@ export class FileManager {
     _uploaderIP?: string,
     _userAgent?: string
   ): Promise<FileMetadata> {
-    const fileId = uuidv4();
+    const fileId = randomUUID();
     const uploadDate = new Date();
     const expiresAt = new Date(
       uploadDate.getTime() +
@@ -112,8 +130,9 @@ export class FileManager {
    * Retrieve file metadata
    */
   async getMetadata(fileId: string): Promise<FileMetadata | null> {
+    const metadataPath = this.resolvePath(fileId, FileManager.METADATA_EXT);
+    if (!metadataPath) return null;
     try {
-      const metadataPath = join(this.uploadDir, fileId + FileManager.METADATA_EXT);
       const metadataJson = await fs.readFile(metadataPath, 'utf-8');
       const metadata = JSON.parse(metadataJson) as FileMetadata;
       
@@ -131,8 +150,9 @@ export class FileManager {
    * Retrieve encrypted file data
    */
   async getFileData(fileId: string): Promise<Buffer | null> {
+    const filePath = this.resolvePath(fileId);
+    if (!filePath) return null;
     try {
-      const filePath = join(this.uploadDir, fileId);
       return await fs.readFile(filePath);
     } catch {
       return null;
@@ -158,8 +178,9 @@ export class FileManager {
     if (!metadata) return;
 
     metadata.downloadCount++;
-    
-    const metadataPath = join(this.uploadDir, fileId + FileManager.METADATA_EXT);
+
+    const metadataPath = this.resolvePath(fileId, FileManager.METADATA_EXT);
+    if (!metadataPath) return;
     await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
   }
 
@@ -167,10 +188,10 @@ export class FileManager {
    * Delete file and metadata
    */
   async deleteFile(fileId: string): Promise<void> {
+    const filePath = this.resolvePath(fileId);
+    const metadataPath = this.resolvePath(fileId, FileManager.METADATA_EXT);
+    if (!filePath || !metadataPath) return;
     try {
-      const filePath = join(this.uploadDir, fileId);
-      const metadataPath = join(this.uploadDir, fileId + FileManager.METADATA_EXT);
-      
       await Promise.allSettled([
         fs.unlink(filePath),
         fs.unlink(metadataPath)

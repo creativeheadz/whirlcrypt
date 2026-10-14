@@ -1,25 +1,25 @@
 # Whirlcrypt Database Schema Documentation
 
-## 📊 Overview
+## Overview
 
 Whirlcrypt v2.0 uses PostgreSQL to store **metadata only** - no sensitive file content or encryption keys are ever stored in the database. The database serves as a tracking and management layer for encrypted files stored on the filesystem.
 
-## 🔒 Security Model
+## Security Model
 
 ### What IS Stored
-- ✅ File metadata (filename, size, content type)
-- ✅ Storage location paths
-- ✅ Expiration timestamps
-- ✅ Download statistics
-- ✅ Access logs (IP addresses, timestamps)
+- File metadata (filename, size, content type)
+- Storage location paths
+- Expiration timestamps
+- Download statistics
+- Access logs (IP addresses, timestamps)
 
 ### What is NOT Stored
-- ❌ **Encryption keys** (stored in URL fragments only)
-- ❌ **File content** (stored encrypted on filesystem)
-- ❌ **User data** (no user accounts)
-- ❌ **Sensitive information** (zero-knowledge architecture)
+- **Encryption keys** (stored in URL fragments only)
+- **File content** (stored encrypted on filesystem)
+- **User data** (no user accounts)
+- **Sensitive information** (zero-knowledge architecture)
 
-## 📋 Database Schema
+## Database Schema
 
 ### Database Information
 - **Engine**: PostgreSQL 16.10
@@ -27,7 +27,7 @@ Whirlcrypt v2.0 uses PostgreSQL to store **metadata only** - no sensitive file c
 - **User**: `whirlcrypt_user`
 - **Extensions**: `uuid-ossp` (for UUID generation)
 
-## 📁 Tables
+## Tables
 
 ### 1. `files` Table
 
@@ -109,7 +109,7 @@ CREATE TABLE download_logs (
 - `idx_download_logs_downloaded_at` (for time-based queries)
 - `idx_download_logs_ip_address` (for IP-based analysis)
 
-## ⚙️ Functions & Triggers
+## Functions & Triggers
 
 ### 1. `update_updated_at_column()` Function
 
@@ -149,7 +149,7 @@ $$ language 'plpgsql';
 
 **Usage**: Called by cron job every 60 minutes (configurable)
 
-## 🔐 Security Considerations
+## Security Considerations
 
 ### Data Protection
 1. **No Encryption Keys**: Keys never touch the database
@@ -169,7 +169,7 @@ $$ language 'plpgsql';
 3. **Retention Limits**: Data automatically expires
 4. **Secure Deletion**: No data recovery after expiration
 
-## 📈 Performance Optimizations
+## Performance Optimizations
 
 ### Indexing Strategy
 - **Primary Keys**: UUID with B-tree indexes
@@ -183,7 +183,7 @@ $$ language 'plpgsql';
 - **Statistics**: Aggregated queries with proper indexes
 - **Audit**: Time-range queries on download logs
 
-## 🛠️ Maintenance
+## Maintenance
 
 ### Regular Tasks
 1. **Cleanup**: Automated via cron job
@@ -209,7 +209,7 @@ FROM files
 WHERE created_at > NOW() - INTERVAL '24 hours';
 ```
 
-## ⚠️ Current Security Gaps
+## Current Security Gaps
 
 ### Admin Interface
 - **No Authentication**: Admin endpoints unprotected
@@ -223,7 +223,7 @@ WHERE created_at > NOW() - INTERVAL '24 hours';
 4. **Encryption at Rest**: Database-level encryption for metadata
 5. **Audit Enhancements**: More detailed logging and alerting
 
-## 📊 Current Statistics
+## Current Statistics
 
 Based on the current deployment:
 - **Total Files**: 0

@@ -112,8 +112,9 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       }
     }
 
-    const message = error instanceof Error ? error.message : 'Upload failed';
-    res.status(500).json({ error: message });
+    // Logged above; clients get a generic message (multer size limits already
+    // answered 413 with a safe message, filesystem/DB errors must not leak).
+    res.status(500).json({ error: 'Upload failed' });
   }
 });
 

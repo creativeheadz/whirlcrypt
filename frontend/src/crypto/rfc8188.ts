@@ -1,4 +1,4 @@
-import { DEFAULT_RECORD_SIZE, SALT_LENGTH, KEY_LENGTH, TAG_LENGTH } from '../types'
+import { DEFAULT_RECORD_SIZE, MAX_RECORD_SIZE, SALT_LENGTH, KEY_LENGTH, TAG_LENGTH } from '../types'
 
 /**
  * RFC 8188 — Encrypted Content-Encoding for HTTP — client-side implementation
@@ -107,7 +107,9 @@ export class ClientCrypto {
     rs: number = DEFAULT_RECORD_SIZE,
     onBytes?: (bytes: number) => void,
   ): AsyncGenerator<Uint8Array, void, unknown> {
-    if (rs < 18) throw new Error('record size must be >= 18 (RFC 8188 §2)')
+    if (rs < 18 || rs > MAX_RECORD_SIZE) {
+      throw new Error(`record size must be between 18 and ${MAX_RECORD_SIZE}`)
+    }
     const cek       = await this.deriveCEK(salt, key)
     const nonceBase = await this.deriveNonceBase(salt, key)
     const cryptoKey = await crypto.subtle.importKey('raw', cek as BufferSource, { name: ALGORITHM }, false, ['encrypt'])
@@ -215,9 +217,10 @@ export class ClientCrypto {
    *
    * Throws on:
    *   - salt mismatch
-   *   - invalid record size in header
+   *   - record size in header outside [18, MAX_RECORD_SIZE]
    *   - record with delimiter other than 0x01 or 0x02
    *   - stream that ends without a terminal (0x02) record
+   *   - trailing bytes after the terminal record
    */
   static async decryptToSink(
     stream: ReadableStream<Uint8Array>,
@@ -278,7 +281,7 @@ export class ClientCrypto {
       if (!headerParsed && buffer.length >= SALT_LENGTH + 5) {
         const headerSalt = buffer.subarray(0, SALT_LENGTH)
         rs = new DataView(buffer.buffer, buffer.byteOffset + SALT_LENGTH, 4).getUint32(0, false)
-        if (rs < 18) throw new Error(`invalid record size in header: ${rs}`)
+        if (rs < 18 || rs > MAX_RECORD_SIZE) throw new Error(`invalid record size in header: ${rs}`)
         const idlen = buffer[SALT_LENGTH + 4]
         const headerLength = SALT_LENGTH + 5 + idlen
         if (buffer.length >= headerLength) {
@@ -304,6 +307,13 @@ export class ClientCrypto {
           buffer = buffer.slice(rs)
           if (isLast) sawTerminal = true
           if (onProgress) onProgress(totalDownloaded, totalDecrypted)
+        }
+        // Fail fast on anything after the terminal record instead of
+        // buffering it until end-of-stream: post-terminal bytes are never
+        // valid, and holding them would let a hostile sender grow memory
+        // without bound.
+        if (sawTerminal && buffer.length > 0) {
+          throw new Error('trailing bytes after terminal record')
         }
       }
 

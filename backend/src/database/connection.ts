@@ -33,11 +33,11 @@ export class DatabaseConnection {
       // Log pool events in development
       if (process.env.NODE_ENV === 'development') {
         this.pool.on('connect', () => {
-          console.log('📦 New database client connected');
+          console.log('New database client connected');
         });
         
         this.pool.on('remove', () => {
-          console.log('📦 Database client removed');
+          console.log('Database client removed');
         });
       }
     }
@@ -68,12 +68,12 @@ export class DatabaseConnection {
       
       try {
         await client.query(schema);
-        console.log('✅ Database schema initialized successfully');
+        console.log('Database schema initialized successfully');
       } finally {
         client.release();
       }
     } catch (error) {
-      console.error('❌ Failed to initialize database schema:', error);
+      console.error('Failed to initialize database schema:', error);
       throw error;
     }
   }
@@ -100,17 +100,17 @@ export class DatabaseConnection {
       if (result.rows.length === 0) {
         // Create database
         await adminClient.query(`CREATE DATABASE "${dbName}"`);
-        console.log(`✅ Database "${dbName}" created successfully`);
+        console.log(`Database "${dbName}" created successfully`);
         
         // Create user if not exists
         try {
           await adminClient.query(
             `CREATE USER "${config.user}" WITH PASSWORD '${config.password}'`
           );
-          console.log(`✅ User "${config.user}" created successfully`);
+          console.log(`User "${config.user}" created successfully`);
         } catch (userError: any) {
           if (userError.code === '42710') { // User already exists
-            console.log(`ℹ️ User "${config.user}" already exists`);
+            console.log(`User "${config.user}" already exists`);
           } else {
             throw userError;
           }
@@ -118,9 +118,9 @@ export class DatabaseConnection {
 
         // Grant privileges
         await adminClient.query(`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${config.user}"`);
-        console.log(`✅ Privileges granted to "${config.user}"`);
+        console.log(`Privileges granted to "${config.user}"`);
       } else {
-        console.log(`ℹ️ Database "${dbName}" already exists`);
+        console.log(`Database "${dbName}" already exists`);
       }
     } finally {
       await adminClient.end();
@@ -131,7 +131,7 @@ export class DatabaseConnection {
     if (this.pool) {
       await this.pool.end();
       this.pool = null;
-      console.log('📦 Database pool closed');
+      console.log('Database pool closed');
     }
   }
 

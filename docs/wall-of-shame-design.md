@@ -1,56 +1,56 @@
-# 😈 Wall of Shame - Public Security Dashboard Design
+# Wall of Shame - Public Security Dashboard Design
 
-## 🎯 **Concept**
+## **Concept**
 A beautiful, public-facing security dashboard showcasing real-time attacks with a "Wall of Shame" featuring banned IPs and their ridiculous requests.
 
-## 🎨 **Glassmorphism Design Elements**
+## **Glassmorphism Design Elements**
 
 ### **Main Dashboard Layout**
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🛡️ Whirlcrypt Security Center                              │
+│  Whirlcrypt Security Center                              │
 ├─────────────────────────────────────────────────────────────┤
-│  📊 Live Stats (Glass Cards)                               │
+│  Live Stats (Glass Cards)                               │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
 │  │Attacks  │ │Blocked  │ │Countries│ │Uptime   │           │
 │  │Today    │ │IPs      │ │Seen     │ │99.9%    │           │
 │  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
 ├─────────────────────────────────────────────────────────────┤
-│  🌍 Attack Map (Animated Globe)                            │
+│  Attack Map (Animated Globe)                            │
 │  [Beautiful 3D globe with attack origins pulsing]          │
 ├─────────────────────────────────────────────────────────────┤
-│  😈 WALL OF SHAME                                          │
+│  WALL OF SHAME                                          │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │ 🔴 PERMANENT BANS - Script Kiddies Hall of Fame        │ │
+│  │ PERMANENT BANS - Script Kiddies Hall of Fame        │ │
 │  │ ┌─────────────────────────────────────────────────────┐ │ │
-│  │ │ 🇷🇺 123.45.67.89 - "wp-admin/login.php"           │ │ │
-│  │ │ 🇨🇳 98.76.54.32  - "/.env"                        │ │ │
-│  │ │ 🇺🇸 11.22.33.44  - "/phpmyadmin/"                 │ │ │
+│  │ │ 123.45.67.89 - "wp-admin/login.php"           │ │ │
+│  │ │ 98.76.54.32  - "/.env"                        │ │ │
+│  │ │ 11.22.33.44  - "/phpmyadmin/"                 │ │ │
 │  │ └─────────────────────────────────────────────────────┘ │ │
 │  │                                                         │ │
-│  │ 🟡 TEMPORARY BANS - 404 Hunters                        │ │
+│  │ TEMPORARY BANS - 404 Hunters                        │ │
 │  │ ┌─────────────────────────────────────────────────────┐ │ │
-│  │ │ 🇩🇪 55.66.77.88 - "/random-endpoint" (15min left) │ │ │
-│  │ │ 🇫🇷 99.88.77.66 - "/api/nonexistent" (8min left)  │ │ │
+│  │ │ 55.66.77.88 - "/random-endpoint" (15min left) │ │ │
+│  │ │ 99.88.77.66 - "/api/nonexistent" (8min left)  │ │ │
 │  │ └─────────────────────────────────────────────────────┘ │ │
 │  └─────────────────────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────────────┤
-│  📈 Attack Trends (Beautiful Charts)                       │
+│  Attack Trends (Beautiful Charts)                       │
 │  [Glassmorphism charts showing attack patterns over time]   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🔥 **Wall of Shame Features**
+## **Wall of Shame Features**
 
 ### **Permanent Ban Section**
-- **🔴 Red Glass Cards** for permanent bans
+- **Red Glass Cards** for permanent bans
 - **Country flags** with IP addresses
 - **Ridiculous requests** that triggered the ban
 - **Ban reason**: "WordPress Probe", "Admin Panel Hunt", "Env File Seeker"
 - **Animated entrance** when new bans are added
 
 ### **Temporary Ban Section**  
-- **🟡 Yellow Glass Cards** for temporary bans
+- **Yellow Glass Cards** for temporary bans
 - **Countdown timers** showing time left
 - **404 requests** that triggered the ban
 - **Auto-removal** when ban expires
@@ -73,68 +73,68 @@ interface ShameEntry {
 const shameCategories = {
   wordpress: {
     title: "WordPress Hunters",
-    icon: "🎯",
+    icon: "",
     color: "red",
     examples: ["wp-admin", "wp-login.php", "wp-content"]
   },
   admin: {
     title: "Admin Panel Seekers", 
-    icon: "🔐",
+    icon: "",
     color: "orange",
     examples: ["admin", "phpmyadmin", "cpanel"]
   },
   env: {
     title: "Secret Hunters",
-    icon: "🕵️",
+    icon: "",
     color: "purple", 
     examples: [".env", "config.php", "database.yml"]
   },
   scanner: {
     title: "Port Scanners",
-    icon: "🔍",
+    icon: "",
     color: "blue",
     examples: ["Nmap", "Masscan", "Zmap"]
   },
   random404: {
     title: "Random 404 Generators",
-    icon: "🎲",
+    icon: "",
     color: "yellow",
     examples: ["random endpoints", "typos", "guessing"]
   }
 };
 ```
 
-## 🎭 **Humorous Elements**
+## **Humorous Elements**
 
 ### **Sarcastic Comments**
 ```typescript
 const shameComments = {
   wordpress: [
-    "Still looking for WordPress? Try WordPress.com! 😂",
+    "Still looking for WordPress? Try WordPress.com!",
     "This isn't your grandma's blog, script kiddie!",
-    "wp-admin? More like wp-BANNED! 🔨"
+    "wp-admin? More like wp-BANNED!"
   ],
   admin: [
-    "Admin panel? The only admin here is the ban hammer! ⚡",
-    "PHPMyAdmin? More like PHPMyBAN! 🚫",
-    "Nice try, but this isn't 2005! 🕰️"
+    "Admin panel? The only admin here is the ban hammer!",
+    "PHPMyAdmin? More like PHPMyBAN!",
+    "Nice try, but this isn't 2005!"
   ],
   env: [
-    "Looking for secrets? Here's one: you're banned! 🤫",
-    "The only .env you'll find is .env-BANNED! 📁",
-    "Secrets are for friends, not script kiddies! 👥"
+    "Looking for secrets? Here's one: you're banned!",
+    "The only .env you'll find is .env-BANNED!",
+    "Secrets are for friends, not script kiddies!"
   ]
 };
 ```
 
 ### **Achievement Badges**
-- 🏆 **"Most Creative 404"** - for the weirdest request
-- 🎯 **"WordPress Obsessed"** - for multiple wp-* requests  
-- 🔍 **"Scanner Supreme"** - for systematic probing
-- 🌍 **"Global Traveler"** - for attacks from many countries
-- ⚡ **"Speed Demon"** - for rapid-fire requests
+- **"Most Creative 404"** - for the weirdest request
+- **"WordPress Obsessed"** - for multiple wp-* requests  
+- **"Scanner Supreme"** - for systematic probing
+- **"Global Traveler"** - for attacks from many countries
+- **"Speed Demon"** - for rapid-fire requests
 
-## 🎨 **Glassmorphism Styling**
+## **Glassmorphism Styling**
 
 ### **CSS Framework**
 ```css
@@ -172,7 +172,7 @@ const shameComments = {
 - **Pulsing glow effects** around active elements
 - **Smooth transitions** between all states
 
-## 📊 **Data Display Strategy**
+## **Data Display Strategy**
 
 ### **Privacy Considerations**
 - **IP Masking**: Show first 3 octets, mask last (123.45.67.xxx)
@@ -186,7 +186,7 @@ const shameComments = {
 - **Auto-refresh** every 30 seconds as fallback
 - **Sound effects** (optional) for new bans
 
-## 🎯 **Implementation Priority**
+## **Implementation Priority**
 
 ### **Phase 1: Core Functionality**
 1. Attack detection and logging system
@@ -203,7 +203,7 @@ const shameComments = {
 2. Historical attack analysis
 3. Export functionality for researchers
 
-## 🚀 **Technical Architecture**
+## **Technical Architecture**
 
 ### **Backend Components**
 - **Attack Logger**: Records all suspicious requests
@@ -217,4 +217,4 @@ const shameComments = {
 - **Attack Map**: Geographic visualization
 - **Stats Cards**: Live metrics display
 
-This will be absolutely BEAUTIFUL and educational! The combination of serious security with playful presentation will make it both informative and entertaining. 🎭✨
+This will be absolutely BEAUTIFUL and educational! The combination of serious security with playful presentation will make it both informative and entertaining.

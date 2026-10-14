@@ -65,18 +65,32 @@ check_dependencies() {
     print_success "All dependencies are installed"
 }
 
+# Generate a random base64 secret (node is a hard dependency of this script)
+generate_secret() {
+    node -e "console.log(require('crypto').randomBytes($1).toString('base64'))"
+}
+
 # Setup environment file
 setup_env() {
     print_status "Setting up environment configuration..."
-    
+
     local env_file="./backend/.env"
-    
+
     if [ ! -f "$env_file" ]; then
         print_status "Creating backend environment file..."
+        local jwt_secret
+        local metadata_key
+        jwt_secret=$(generate_secret 48)
+        metadata_key=$(generate_secret 32)
         cat > "$env_file" << EOF
 # Server Configuration
 NODE_ENV=development
 PORT=3001
+# Admin JWT secret (generated at setup; production refuses to boot without one)
+JWT_SECRET=$jwt_secret
+JWT_EXPIRES_IN=24h
+# Metadata encryption key (generated at setup; production refuses to boot without one)
+METADATA_ENCRYPTION_KEY=$metadata_key
 
 # Database Configuration
 DB_HOST=localhost
@@ -114,6 +128,20 @@ EOF
         print_success "Backend environment file created"
     else
         print_warning "Backend environment file already exists"
+        # Backfill secrets on older .env files that predate secret generation
+        if ! grep -q '^JWT_SECRET=' "$env_file"; then
+            print_status "Adding generated JWT_SECRET to existing environment file..."
+            echo "" >> "$env_file"
+            echo "# Admin JWT secret (generated; production refuses to boot without one)" >> "$env_file"
+            echo "JWT_SECRET=$(generate_secret 48)" >> "$env_file"
+            grep -q '^JWT_EXPIRES_IN=' "$env_file" || echo "JWT_EXPIRES_IN=24h" >> "$env_file"
+        fi
+        if ! grep -q '^METADATA_ENCRYPTION_KEY=' "$env_file"; then
+            print_status "Adding generated METADATA_ENCRYPTION_KEY to existing environment file..."
+            echo "" >> "$env_file"
+            echo "# Metadata encryption key (generated; production refuses to boot without one)" >> "$env_file"
+            echo "METADATA_ENCRYPTION_KEY=$(generate_secret 32)" >> "$env_file"
+        fi
     fi
 }
 

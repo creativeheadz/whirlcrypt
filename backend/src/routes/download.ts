@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { getFileManager } from '../services/fileManagerService';
+import { downloadRateLimitMiddleware } from '../middleware/security';
 
 const router = Router();
 
@@ -9,7 +10,7 @@ const router = Router();
  * Download and decrypt file
  * GET /api/download/:id
  */
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', downloadRateLimitMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const fileManager = getFileManager();
@@ -87,8 +88,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const message = error instanceof Error ? error.message : 'Download failed';
-    res.status(500).json({ error: message });
+    // Details are logged server-side above; clients get a generic message so
+    // filesystem/DB internals never leak into API responses.
+    res.status(500).json({ error: 'Download failed' });
   }
 });
 
@@ -124,8 +126,7 @@ router.get('/:id/info', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Info error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to get file info';
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: 'Failed to get file info' });
   }
 });
 

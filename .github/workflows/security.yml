@@ -1,4 +1,4 @@
-name: 🔒 Security Audit
+name: Security Audit
 
 on:
   push:
@@ -25,37 +25,37 @@ jobs:
         workspace: [backend, frontend]
     
     steps:
-      - name: 🛒 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: 📦 Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
           
-      - name: 📥 Install dependencies
+      - name: Install dependencies
         run: |
           npm ci
           cd ${{ matrix.workspace }}
           npm ci
           
-      - name: 🔍 Run npm audit
+      - name: Run npm audit
         run: |
           cd ${{ matrix.workspace }}
           npm audit --audit-level=moderate --json > npm-audit-${{ matrix.workspace }}.json || true
           
-      - name: 🛡️ Run Socket Security scan
+      - name: Run Socket Security scan
         run: |
           cd ${{ matrix.workspace }}
           npx @socketsecurity/cli@latest audit --json > socket-audit-${{ matrix.workspace }}.json || true
           
-      - name: 📋 Check licenses
+      - name: Check licenses
         run: |
           cd ${{ matrix.workspace }}
           npx license-checker --summary --json > licenses-${{ matrix.workspace }}.json || true
           
-      - name: 📊 Upload security reports
+      - name: Upload security reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,7 +66,7 @@ jobs:
             ${{ matrix.workspace }}/licenses-${{ matrix.workspace }}.json
           retention-days: 30
           
-      - name: 🚨 Fail on high severity issues
+      - name: Fail on high severity issues
         run: |
           cd ${{ matrix.workspace }}
           # Check if there are any high severity vulnerabilities
@@ -75,11 +75,11 @@ jobs:
             CRITICAL_VULNS=$(cat npm-audit-${{ matrix.workspace }}.json | jq '.metadata.vulnerabilities.critical // 0')
             
             if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
-              echo "❌ High or critical severity vulnerabilities found!"
+              echo "High or critical severity vulnerabilities found!"
               echo "High: $HIGH_VULNS, Critical: $CRITICAL_VULNS"
               exit 1
             else
-              echo "✅ No high or critical severity vulnerabilities found"
+              echo "No high or critical severity vulnerabilities found"
             fi
           fi
 
@@ -89,10 +89,10 @@ jobs:
     if: github.event_name == 'pull_request'
     
     steps:
-      - name: 🛒 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: 🔍 Dependency Review
+      - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
@@ -108,18 +108,18 @@ jobs:
         language: [ 'javascript', 'typescript' ]
         
     steps:
-      - name: 🛒 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: 🔍 Initialize CodeQL
+      - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           
-      - name: 🏗️ Autobuild
+      - name: Autobuild
         uses: github/codeql-action/autobuild@v3
         
-      - name: 🔍 Perform CodeQL Analysis
+      - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{matrix.language}}"
@@ -131,12 +131,12 @@ jobs:
     if: always()
     
     steps:
-      - name: 📊 Download all artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         
-      - name: 📋 Generate security summary
+      - name: Generate security summary
         run: |
-          echo "# 🔒 Security Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# Security Audit Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Audit Results" >> $GITHUB_STEP_SUMMARY
           
@@ -158,7 +158,7 @@ jobs:
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Security Status" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Automated security scanning completed" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔍 CodeQL analysis performed" >> $GITHUB_STEP_SUMMARY
-          echo "- 📦 Dependency review completed" >> $GITHUB_STEP_SUMMARY
-          echo "- 🛡️ Socket security scan executed" >> $GITHUB_STEP_SUMMARY
+          echo "- Automated security scanning completed" >> $GITHUB_STEP_SUMMARY
+          echo "- CodeQL analysis performed" >> $GITHUB_STEP_SUMMARY
+          echo "- Dependency review completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Socket security scan executed" >> $GITHUB_STEP_SUMMARY

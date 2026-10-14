@@ -504,10 +504,8 @@ router.get('/mfa/setup', requireAuth, withAuth(async (req: AuthenticatedRequest,
 }));
 
 function getClientIP(req: Request): string {
-  return (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-         req.connection.remoteAddress ||
-         req.socket.remoteAddress ||
-         'unknown';
+  // req.ip only - trust proxy is configured centrally (see index.ts).
+  return req.ip || 'unknown';
 }
 
 export default router;

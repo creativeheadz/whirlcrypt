@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config/config';
+import { buildRetentionUpdate } from '../config/retentionUpdate';
 import { getFileManager } from '../services/fileManagerService';
 import { requireAuth, logAction, withAuth, AuthenticatedRequest } from '../auth/middleware';
 import { certificateMonitoringJob } from '../jobs/certificateMonitoring';
@@ -120,33 +121,26 @@ router.get('/config', requireAuth, logAction('VIEW_CONFIG'), withAuth((req: Auth
 }));
 
 /**
- * Update retention configuration (in memory only)
+ * Update retention configuration. Validated, but intentionally TEMPORARY:
+ * environment variables stay the source of truth and a restart resets these.
  * PUT /api/admin/config
  */
 router.put('/config', requireAuth, logAction('UPDATE_CONFIG'), withAuth((req: AuthenticatedRequest, res: Response) => {
   try {
-    const { defaultRetentionHours, maxRetentionHours, maxFileSize } = req.body;
-    
-    if (defaultRetentionHours && defaultRetentionHours > 0) {
-      config.retention.defaultRetentionHours = Math.min(
-        defaultRetentionHours, 
-        config.retention.maxRetentionHours
-      );
+    const result = buildRetentionUpdate(req.body, config.retention);
+    if (!result.ok) {
+      return res.status(400).json({ error: result.error });
     }
-    
-    if (maxRetentionHours && maxRetentionHours > 0) {
-      config.retention.maxRetentionHours = maxRetentionHours;
-    }
-    
-    if (maxFileSize && maxFileSize > 0) {
-      config.retention.maxFileSize = maxFileSize;
-    }
-    
+
+    Object.assign(config.retention, result.updates);
+
     res.json({
-      message: 'Configuration updated',
-      retention: config.retention
+      message: 'Configuration updated (temporary - resets to environment values on restart)',
+      temporary: true,
+      retention: config.retention,
+      note: 'maxFileSize above your reverse proxy body limit (nginx client_max_body_size) has no effect on proxied uploads.'
     });
-    
+
   } catch (error) {
     console.error('Config update error:', error);
     const message = error instanceof Error ? error.message : 'Failed to update config';

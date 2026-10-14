@@ -1,6 +1,6 @@
 # Security Policy
 
-## 🛡️ Security Architecture
+## Security Architecture
 
 ### End-to-End Encryption Model
 
@@ -112,7 +112,7 @@ form-action 'self';
 
 #### Current State (Development)
 - **No user authentication** required
-- **Admin endpoints** have no authentication ⚠️
+- **Admin endpoints** have no authentication
 - **Rate limiting** as primary protection mechanism
 
 #### Production Recommendations
@@ -160,22 +160,22 @@ PostgreSQL:
 
 #### Protected Against
 
-✅ **Man-in-the-middle attacks** - End-to-end encryption
-✅ **Server-side data breaches** - Zero-knowledge architecture
-✅ **SQL injection** - Prepared statements and parameterized queries
-✅ **XSS attacks** - CSP and input sanitization
-✅ **CSRF attacks** - SameSite cookies and CSRF tokens
-✅ **DoS attacks** - Rate limiting and connection limits
-✅ **Clickjacking** - X-Frame-Options header
-✅ **MIME sniffing** - X-Content-Type-Options header
+- **Man-in-the-middle attacks** - End-to-end encryption
+- **Server-side data breaches** - Zero-knowledge architecture
+- **SQL injection** - Prepared statements and parameterized queries
+- **XSS attacks** - CSP and input sanitization
+- **CSRF attacks** - SameSite cookies and CSRF tokens
+- **DoS attacks** - Rate limiting and connection limits
+- **Clickjacking** - X-Frame-Options header
+- **MIME sniffing** - X-Content-Type-Options header
 
 #### Current Limitations
 
-⚠️ **Admin interface** - No authentication (development only)
-⚠️ **Brute force attacks** - Limited rate limiting protection
-⚠️ **Advanced persistent threats** - No behavioral analysis
-⚠️ **Physical server access** - Standard OS-level protections only
-⚠️ **Key management** - Users responsible for sharing URLs securely
+- **Admin interface** - No authentication (development only)
+- **Brute force attacks** - Limited rate limiting protection
+- **Advanced persistent threats** - No behavioral analysis
+- **Physical server access** - Standard OS-level protections only
+- **Key management** - Users responsible for sharing URLs securely
 
 ### Secure Development Practices
 
@@ -191,17 +191,17 @@ PostgreSQL:
 
 ```bash
 # Security checklist for production
-□ Change all default passwords
-□ Enable HTTPS with valid certificates
-□ Configure firewall rules
-□ Set up automated backups
-□ Enable audit logging
-□ Configure monitoring and alerts
-□ Regular security updates
-□ Penetration testing
+# [ ] Change all default passwords
+# [ ] Enable HTTPS with valid certificates
+# [ ] Configure firewall rules
+# [ ] Set up automated backups
+# [ ] Enable audit logging
+# [ ] Configure monitoring and alerts
+# [ ] Regular security updates
+# [ ] Penetration testing
 ```
 
-## 🚨 Security Reporting
+## Security Reporting
 
 ### Responsible Disclosure
 
@@ -237,7 +237,7 @@ If you discover a security vulnerability, please report it responsibly:
 - DoS attacks (unless critical)
 - Third-party dependency issues (report upstream)
 
-## 🏆 Security Best Practices
+## Security Best Practices
 
 ### For Users
 
@@ -264,7 +264,7 @@ If you discover a security vulnerability, please report it responsibly:
 4. **Secrets management** - Never commit credentials
 5. **Regular penetration testing** - Third-party security audits
 
-## 📋 Security Compliance
+## Security Compliance
 
 ### Standards Compliance
 

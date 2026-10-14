@@ -2,7 +2,7 @@ import { StorageManager } from './StorageManager';
 import { FileRepository, CreateFileData, UpdateFileData, DownloadLogData } from '../database/models/File';
 import { FileMetadata } from '../types';
 import { config } from '../config/config';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { createReadStream, ReadStream } from 'fs';
 import { join } from 'path';
 import { MetadataEncryption, FileMetadataToEncrypt } from '../services/MetadataEncryption';
@@ -18,7 +18,7 @@ export class FileManagerV2 {
 
   async initialize(): Promise<void> {
     await this.storageManager.initialize();
-    console.log('✅ FileManagerV2 initialized');
+    console.log('FileManagerV2 initialized');
   }
 
   /**
@@ -33,7 +33,7 @@ export class FileManagerV2 {
     uploaderIP?: string,
     userAgent?: string
   ): Promise<FileMetadata> {
-    const fileId = uuidv4();
+    const fileId = randomUUID();
     const expiresAt = new Date(Date.now() + (retentionHours * 60 * 60 * 1000));
 
     // Store the encrypted file data
@@ -78,7 +78,7 @@ export class FileManagerV2 {
 
     const fileMetadata = await this.fileRepository.create(createData);
 
-    console.log(`📁 File stored: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
+    console.log(`File stored: ${fileId} (encrypted metadata) - expires ${expiresAt.toISOString()}`);
     return fileMetadata;
   }
 
@@ -97,7 +97,7 @@ export class FileManagerV2 {
     uploaderIP?: string,
     userAgent?: string
   ): Promise<FileMetadata> {
-    const fileId = uuidv4();
+    const fileId = randomUUID();
     const expiresAt = new Date(Date.now() + (retentionHours * 60 * 60 * 1000));
 
     const storagePath = await this.storageManager.storeFromPath(
@@ -139,7 +139,7 @@ export class FileManagerV2 {
 
     const fileMetadata = await this.fileRepository.create(createData);
 
-    console.log(`📁 File stored from path: ${fileId} (${fileSize} bytes, encrypted metadata) - expires ${expiresAt.toISOString()}`);
+    console.log(`File stored from path: ${fileId} (${fileSize} bytes, encrypted metadata) - expires ${expiresAt.toISOString()}`);
     return fileMetadata;
   }
 
@@ -294,7 +294,7 @@ export class FileManagerV2 {
       // Mark as inactive in database
       await this.fileRepository.update(fileId, { isActive: false });
       
-      console.log(`🗑️ File deleted: ${fileId} (${metadata.filename})`);
+      console.log(`File deleted: ${fileId} (${metadata.filename})`);
       return true;
     } catch (error: any) {
       console.error(`Error deleting file ${fileId}:`, error);
@@ -308,14 +308,14 @@ export class FileManagerV2 {
   async cleanupExpiredFiles(): Promise<number> {
     try {
       // Get expired files before cleanup to remove from storage
-      const expiredFiles = await this.fileRepository.findExpiringSoon(-1); // Get already expired files
+      const expiredFiles = await this.fileRepository.findExpired();
       
       // Remove expired files from storage
       for (const file of expiredFiles) {
         if (file.storagePath) {
           try {
             await this.storageManager.delete(file.storagePath);
-            console.log(`🧹 Removed expired file from storage: ${file.id} (${file.filename})`);
+            console.log(`Removed expired file from storage: ${file.id} (${file.filename})`);
           } catch (error: any) {
             console.error(`Error removing expired file from storage ${file.id}:`, error);
           }
@@ -326,7 +326,7 @@ export class FileManagerV2 {
       const cleanedCount = await this.fileRepository.cleanupExpiredFiles();
       
       if (cleanedCount > 0) {
-        console.log(`🧹 Cleaned up ${cleanedCount} expired files`);
+        console.log(`Cleaned up ${cleanedCount} expired files`);
       }
       
       return cleanedCount;
@@ -457,6 +457,6 @@ export class FileManagerV2 {
    */
   async cleanup(): Promise<void> {
     await this.storageManager.cleanup();
-    console.log('📦 FileManagerV2 cleaned up');
+    console.log('FileManagerV2 cleaned up');
   }
 }

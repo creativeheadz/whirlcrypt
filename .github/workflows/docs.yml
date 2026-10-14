@@ -1,4 +1,4 @@
-name: 📚 Deploy API Documentation
+name: Deploy API Documentation
 
 on:
   push:
@@ -29,13 +29,13 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: 🛒 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 📝 Setup Pages
+      - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: 🔨 Build Documentation Site
+      - name: Build Documentation Site
         run: |
           mkdir -p _site
           
@@ -122,37 +122,37 @@ jobs:
               
               <div class="links">
                 <a href="./api.html" class="link-card">
-                  <div class="link-title">📖 Complete API Reference</div>
+                  <div class="link-title">Complete API Reference</div>
                   <div class="link-desc">Detailed documentation with examples and code samples</div>
                 </a>
                 
                 <a href="./openapi.yaml" class="link-card">
-                  <div class="link-title">⚙️ OpenAPI Specification</div>
+                  <div class="link-title">OpenAPI Specification</div>
                   <div class="link-desc">YAML specification for API integration</div>
                 </a>
                 
                 <a href="https://editor.swagger.io/?url=https://creativeheadz.github.io/whirlcrypt/openapi.yaml" class="link-card" target="_blank">
-                  <div class="link-title">🚀 Interactive API Explorer</div>
+                  <div class="link-title">Interactive API Explorer</div>
                   <div class="link-desc">Try the API endpoints with Swagger Editor</div>
                 </a>
                 
                 <a href="https://github.com/creativeheadz/whirlcrypt" class="link-card" target="_blank">
-                  <div class="link-title">📂 Source Code</div>
+                  <div class="link-title">Source Code</div>
                   <div class="link-desc">View the complete source code on GitHub</div>
                 </a>
               </div>
               
               <div style="text-align: center; margin-top: 3rem; opacity: 0.7; font-size: 0.95rem; color: #6b7280;">
-                Built with ❤️ using RFC 8188 encryption standards • v2.0
+                Built with using RFC 8188 encryption standards • v2.0
               </div>
             </div>
           </body>
           </html>
           EOF
           
-      - name: 📤 Upload artifact
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
 
-      - name: 🚀 Deploy to GitHub Pages  
+      - name: Deploy to GitHub Pages  
         id: deployment
         uses: actions/deploy-pages@v4

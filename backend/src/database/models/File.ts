@@ -214,11 +214,27 @@ export class FileRepository {
 
   async findExpiringSoon(hours: number = 1): Promise<FileMetadata[]> {
     const query = `
-      SELECT * FROM active_files 
-      WHERE expires_at BETWEEN NOW() AND NOW() + INTERVAL '${hours} hours'
+      SELECT * FROM active_files
+      WHERE expires_at BETWEEN NOW() AND NOW() + $1 * INTERVAL '1 hour'
       AND is_expired = FALSE
     `;
-    
+
+    const result = await this.pool.query(query, [hours]);
+    return result.rows.map((row: any) => this.mapRowToFileMetadata(row));
+  }
+
+  /**
+   * Files cleanup is about to delete: already expired, or past max downloads.
+   * Mirrors the cleanup_expired_files() predicate exactly so storage deletion
+   * and database deletion always cover the same rows.
+   */
+  async findExpired(): Promise<FileMetadata[]> {
+    const query = `
+      SELECT * FROM files
+      WHERE expires_at < NOW()
+      OR (max_downloads IS NOT NULL AND download_count >= max_downloads)
+    `;
+
     const result = await this.pool.query(query);
     return result.rows.map((row: any) => this.mapRowToFileMetadata(row));
   }

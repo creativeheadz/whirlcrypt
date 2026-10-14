@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "tsx --test tests/*.test.ts",
     "security:audit": "npm audit --audit-level=moderate",
     "security:audit-fix": "npm audit fix",
     "security:socket": "npx @socketsecurity/cli@latest audit",

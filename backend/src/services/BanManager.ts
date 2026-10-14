@@ -95,7 +95,7 @@ export class BanManager {
   async permanentBan(ip: string, attackInfo: AttackInfo): Promise<void> {
     // Never ban whitelisted IPs
     if (this.isIPWhitelisted(ip)) {
-      console.log(`🛡️ Skipping ban for whitelisted IP: ${ip}`);
+      console.log(`Skipping ban for whitelisted IP: ${ip}`);
       return;
     }
     const query = `
@@ -129,7 +129,7 @@ export class BanManager {
 
     try {
       await this.pool.query(query, values);
-      console.log(`🔨 PERMANENT BAN: ${ip} for ${attackInfo.category} (${attackInfo.path})`);
+      console.log(`PERMANENT BAN: ${ip} for ${attackInfo.category} (${attackInfo.path})`);
     } catch (error) {
       console.error('Error applying permanent ban:', error);
     }
@@ -141,7 +141,7 @@ export class BanManager {
   async temporaryBan(ip: string, attackInfo: AttackInfo, durationMinutes: number): Promise<void> {
     // Never ban whitelisted IPs
     if (this.isIPWhitelisted(ip)) {
-      console.log(`🛡️ Skipping temporary ban for whitelisted IP: ${ip}`);
+      console.log(`Skipping temporary ban for whitelisted IP: ${ip}`);
       return;
     }
     const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
@@ -184,7 +184,7 @@ export class BanManager {
 
     try {
       await this.pool.query(query, values);
-      console.log(`⏰ TEMPORARY BAN: ${ip} for ${durationMinutes} minutes (${attackInfo.path})`);
+      console.log(`TEMPORARY BAN: ${ip} for ${durationMinutes} minutes (${attackInfo.path})`);
     } catch (error) {
       console.error('Error applying temporary ban:', error);
     }
@@ -287,26 +287,26 @@ export class BanManager {
   }
 
   /**
-   * Get country flag emoji
+   * Get ISO country code for a country name (for admin telemetry display)
    */
   private getCountryFlag(country: string | null): string {
-    if (!country) return '🏴‍☠️'; // Pirate flag for unknown
+    if (!country) return 'XX';
     
-    // Map country names to flag emojis (simplified)
+    // Map country names to ISO 3166-1 alpha-2 codes (simplified)
     const flagMap: { [key: string]: string } = {
-      'Russia': '🇷🇺',
-      'China': '🇨🇳',
-      'United States': '🇺🇸',
-      'Germany': '🇩🇪',
-      'France': '🇫🇷',
-      'United Kingdom': '🇬🇧',
-      'Netherlands': '🇳🇱',
-      'Brazil': '🇧🇷',
-      'India': '🇮🇳',
-      'Japan': '🇯🇵'
+      'Russia': 'RU',
+      'China': 'CN',
+      'United States': 'US',
+      'Germany': 'DE',
+      'France': 'FR',
+      'United Kingdom': 'GB',
+      'Netherlands': 'NL',
+      'Brazil': 'BR',
+      'India': 'IN',
+      'Japan': 'JP'
     };
     
-    return flagMap[country] || '🌍';
+    return flagMap[country] || 'XX';
   }
 
   /**
@@ -315,34 +315,34 @@ export class BanManager {
   private getSarcasticComment(category: string): string {
     const comments: { [key: string]: string[] } = {
       wordpress: [
-        "Still looking for WordPress? Try WordPress.com! 😂",
+        "Still looking for WordPress? Try WordPress.com!",
         "This isn't your grandma's blog, script kiddie!",
-        "wp-admin? More like wp-BANNED! 🔨"
+        "wp-admin? More like wp-BANNED!"
       ],
       admin: [
-        "Admin panel? The only admin here is the ban hammer! ⚡",
-        "PHPMyAdmin? More like PHPMyBAN! 🚫",
-        "Nice try, but this isn't 2005! 🕰️"
+        "Admin panel? The only admin here is the ban hammer!",
+        "PHPMyAdmin? More like PHPMyBAN!",
+        "Nice try, but this isn't 2005!"
       ],
       env: [
-        "Looking for secrets? Here's one: you're banned! 🤫",
-        "The only .env you'll find is .env-BANNED! 📁",
-        "Secrets are for friends, not script kiddies! 👥"
+        "Looking for secrets? Here's one: you're banned!",
+        "The only .env you'll find is .env-BANNED!",
+        "Secrets are for friends, not script kiddies!"
       ],
       scanner: [
-        "Automated tools? How original! 🤖",
-        "Beep boop, you're banned! 🚫",
-        "Nice scanner, shame about the ban! 🔍"
+        "Automated tools? How original!",
+        "Beep boop, you're banned!",
+        "Nice scanner, shame about the ban!"
       ],
       exploit: [
-        "Shell access? The only shell you'll get is banned! 🐚",
-        "System commands? System says NO! ❌",
-        "Exploit attempt? More like exploit FAILED! 💥"
+        "Shell access? The only shell you'll get is banned!",
+        "System commands? System says NO!",
+        "Exploit attempt? More like exploit FAILED!"
       ],
       random404: [
-        "404: Your access privileges not found! 🔍",
-        "Random guessing? Random banning! 🎲",
-        "Keep trying, we have all day to ban you! ⏰"
+        "404: Your access privileges not found!",
+        "Random guessing? Random banning!",
+        "Keep trying, we have all day to ban you!"
       ]
     };
 
@@ -367,7 +367,7 @@ export class BanManager {
       const cleanedCount = result.rowCount || 0;
       
       if (cleanedCount > 0) {
-        console.log(`🧹 Cleaned up ${cleanedCount} expired bans`);
+        console.log(`Cleaned up ${cleanedCount} expired bans`);
       }
       
       return cleanedCount;
@@ -392,7 +392,7 @@ export class BanManager {
       const unbanned = (result.rowCount || 0) > 0;
       
       if (unbanned) {
-        console.log(`🔓 Manually unbanned IP: ${ip}`);
+        console.log(`Manually unbanned IP: ${ip}`);
       }
       
       return unbanned;

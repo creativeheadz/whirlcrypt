@@ -123,6 +123,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <span>RFC 8188 record stream</span>
             <span aria-hidden>·</span>
             <span>Zero server decryption</span>
+            <span aria-hidden>·</span>
+            {/^[0-9a-f]{7,40}$/i.test(__COMMIT_HASH__) ? (
+              <a
+                href={`https://github.com/creativeheadz/whirlcrypt/commit/${__COMMIT_HASH__}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Deployed commit"
+                className="hover:text-ember transition-colors"
+                style={{ borderBottom: 'none' }}
+              >
+                {__COMMIT_HASH__}
+              </a>
+            ) : (
+              <span title="Deployed commit">{__COMMIT_HASH__}</span>
+            )}
           </div>
           <a
             href="https://oldforge.tech"

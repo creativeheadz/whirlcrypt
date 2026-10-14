@@ -282,13 +282,11 @@ export class AuthMiddleware {
   };
 
   /**
-   * Helper to get client IP address
+   * Helper to get client IP address. req.ip only - trust proxy is configured
+   * centrally (see index.ts), so Express already resolved proxy headers safely.
    */
   private static getClientIP(req: Request): string {
-    return (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-           req.connection.remoteAddress ||
-           req.socket.remoteAddress ||
-           'unknown';
+    return req.ip || 'unknown';
   }
 
   /**

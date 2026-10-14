@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 
+// Must be the first import: loads .env before any module reads process.env.
+import 'dotenv/config';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import QRCode from 'qrcode';
-import dotenv from 'dotenv';
 import { DatabaseConnection } from '../database/connection';
 import { AdminUserRepository, AdminAuditRepository } from '../database/models/AdminUser';
-
-// Load environment variables
-dotenv.config();
 
 const program = new Command();
 const rl = readline.createInterface({
@@ -55,15 +53,15 @@ class AdminCLI {
       const connected = await DatabaseConnection.testConnection();
       if (connected) {
         this.useDatabase = true;
-        console.log(chalk.green('✅ Connected to database'));
+        console.log(chalk.green('Connected to database'));
       } else {
         this.useDatabase = false;
-        console.log(chalk.yellow('⚠️  Database not available, using filesystem storage'));
+        console.log(chalk.yellow('Database not available, using filesystem storage'));
         this.ensureDataDirectory();
       }
     } catch (error) {
       this.useDatabase = false;
-      console.log(chalk.yellow('⚠️  Database not available, using filesystem storage'));
+      console.log(chalk.yellow('Database not available, using filesystem storage'));
       this.ensureDataDirectory();
     }
   }
@@ -130,29 +128,29 @@ class AdminCLI {
   }
 
   async addUser(): Promise<void> {
-    console.log(chalk.blue('\n🔐 Add New Admin User\n'));
+    console.log(chalk.blue('\nAdd New Admin User\n'));
 
     const username = await this.prompt('Username: ');
     if (!username.trim()) {
-      console.log(chalk.red('❌ Username is required'));
+      console.log(chalk.red('Username is required'));
       return;
     }
 
     const email = await this.prompt('Email: ');
     if (!email.trim() || !email.includes('@')) {
-      console.log(chalk.red('❌ Valid email is required'));
+      console.log(chalk.red('Valid email is required'));
       return;
     }
 
     const password = await this.promptPassword('Password: ');
     if (password.length < 8) {
-      console.log(chalk.red('❌ Password must be at least 8 characters'));
+      console.log(chalk.red('Password must be at least 8 characters'));
       return;
     }
 
     const confirmPassword = await this.promptPassword('Confirm Password: ');
     if (password !== confirmPassword) {
-      console.log(chalk.red('❌ Passwords do not match'));
+      console.log(chalk.red('Passwords do not match'));
       return;
     }
 
@@ -176,7 +174,7 @@ class AdminCLI {
           metadata: { userId: user.id, mfaEnabled }
         });
 
-        console.log(chalk.green(`✅ User '${user.username}' created successfully`));
+        console.log(chalk.green(`User '${user.username}' created successfully`));
         
         if (mfaEnabled && user.mfaSecret) {
           await this.showMfaSetup(user.username, user.mfaSecret);
@@ -186,15 +184,13 @@ class AdminCLI {
         await this.createUserInFile(username.trim(), email.trim(), password, mfaEnabled);
       }
     } catch (error) {
-      console.log(chalk.red(`❌ Error creating user: ${(error as Error).message}`));
+      console.log(chalk.red(`Error creating user: ${(error as Error).message}`));
     }
   }
 
   private async createUserInFile(username: string, email: string, password: string, mfaEnabled: boolean): Promise<void> {
     const bcrypt = require('bcrypt');
     const speakeasy = require('speakeasy');
-    const { v4: uuidv4 } = require('uuid');
-
     const users: FileSystemUser[] = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     
     // Check if user exists
@@ -219,7 +215,7 @@ class AdminCLI {
     }
 
     const newUser: FileSystemUser = {
-      id: uuidv4(),
+      id: randomUUID(),
       username,
       email,
       passwordHash,
@@ -235,7 +231,7 @@ class AdminCLI {
     users.push(newUser);
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 
-    console.log(chalk.green(`✅ User '${username}' created successfully`));
+    console.log(chalk.green(`User '${username}' created successfully`));
     
     if (mfaEnabled && mfaSecret) {
       await this.showMfaSetup(username, mfaSecret);
@@ -243,7 +239,7 @@ class AdminCLI {
   }
 
   private async showMfaSetup(username: string, secret: string): Promise<void> {
-    console.log(chalk.blue('\n🔐 MFA Setup\n'));
+    console.log(chalk.blue('\nMFA Setup\n'));
     
     const otpauthUrl = `otpauth://totp/Whirlcrypt%20(${encodeURIComponent(username)})?secret=${secret}&issuer=Whirlcrypt`;
     
@@ -262,7 +258,7 @@ class AdminCLI {
   }
 
   async listUsers(): Promise<void> {
-    console.log(chalk.blue('\n👥 Admin Users\n'));
+    console.log(chalk.blue('\nAdmin Users\n'));
 
     try {
       if (this.useDatabase) {
@@ -273,7 +269,7 @@ class AdminCLI {
         this.displayUsers(users);
       }
     } catch (error) {
-      console.log(chalk.red(`❌ Error listing users: ${(error as Error).message}`));
+      console.log(chalk.red(`Error listing users: ${(error as Error).message}`));
     }
   }
 
@@ -296,23 +292,23 @@ class AdminCLI {
   }
 
   async resetPassword(): Promise<void> {
-    console.log(chalk.blue('\n🔑 Reset User Password\n'));
+    console.log(chalk.blue('\nReset User Password\n'));
 
     const username = await this.prompt('Username: ');
     if (!username.trim()) {
-      console.log(chalk.red('❌ Username is required'));
+      console.log(chalk.red('Username is required'));
       return;
     }
 
     const password = await this.promptPassword('New Password: ');
     if (password.length < 8) {
-      console.log(chalk.red('❌ Password must be at least 8 characters'));
+      console.log(chalk.red('Password must be at least 8 characters'));
       return;
     }
 
     const confirmPassword = await this.promptPassword('Confirm Password: ');
     if (password !== confirmPassword) {
-      console.log(chalk.red('❌ Passwords do not match'));
+      console.log(chalk.red('Passwords do not match'));
       return;
     }
 
@@ -320,7 +316,7 @@ class AdminCLI {
       if (this.useDatabase) {
         const user = await this.userRepo.findByUsername(username.trim());
         if (!user) {
-          console.log(chalk.red('❌ User not found'));
+          console.log(chalk.red('User not found'));
           return;
         }
 
@@ -338,12 +334,12 @@ class AdminCLI {
           metadata: { userId: user.id }
         });
 
-        console.log(chalk.green(`✅ Password reset for user '${user.username}'`));
+        console.log(chalk.green(`Password reset for user '${user.username}'`));
       } else {
         await this.resetPasswordInFile(username.trim(), password);
       }
     } catch (error) {
-      console.log(chalk.red(`❌ Error resetting password: ${(error as Error).message}`));
+      console.log(chalk.red(`Error resetting password: ${(error as Error).message}`));
     }
   }
 
@@ -363,15 +359,15 @@ class AdminCLI {
     users[userIndex].updatedAt = new Date().toISOString();
 
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-    console.log(chalk.green(`✅ Password reset for user '${username}'`));
+    console.log(chalk.green(`Password reset for user '${username}'`));
   }
 
   async toggleMfa(): Promise<void> {
-    console.log(chalk.blue('\n🔐 Toggle MFA\n'));
+    console.log(chalk.blue('\nToggle MFA\n'));
 
     const username = await this.prompt('Username: ');
     if (!username.trim()) {
-      console.log(chalk.red('❌ Username is required'));
+      console.log(chalk.red('Username is required'));
       return;
     }
 
@@ -379,7 +375,7 @@ class AdminCLI {
       if (this.useDatabase) {
         const user = await this.userRepo.findByUsername(username.trim());
         if (!user) {
-          console.log(chalk.red('❌ User not found'));
+          console.log(chalk.red('User not found'));
           return;
         }
 
@@ -401,7 +397,7 @@ class AdminCLI {
           metadata: { userId: user.id }
         });
 
-        console.log(chalk.green(`✅ MFA ${newMfaStatus ? 'enabled' : 'disabled'} for user '${user.username}'`));
+        console.log(chalk.green(`MFA ${newMfaStatus ? 'enabled' : 'disabled'} for user '${user.username}'`));
 
         if (newMfaStatus && mfaSecret) {
           await this.showMfaSetup(user.username, mfaSecret);
@@ -410,7 +406,7 @@ class AdminCLI {
         await this.toggleMfaInFile(username.trim());
       }
     } catch (error) {
-      console.log(chalk.red(`❌ Error toggling MFA: ${(error as Error).message}`));
+      console.log(chalk.red(`Error toggling MFA: ${(error as Error).message}`));
     }
   }
 
@@ -444,7 +440,7 @@ class AdminCLI {
     user.updatedAt = new Date().toISOString();
 
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-    console.log(chalk.green(`✅ MFA ${newMfaStatus ? 'enabled' : 'disabled'} for user '${username}'`));
+    console.log(chalk.green(`MFA ${newMfaStatus ? 'enabled' : 'disabled'} for user '${username}'`));
 
     if (newMfaStatus && user.mfaSecret) {
       await this.showMfaSetup(username, user.mfaSecret);
@@ -452,17 +448,17 @@ class AdminCLI {
   }
 
   async deleteUser(): Promise<void> {
-    console.log(chalk.blue('\n🗑️  Delete User\n'));
+    console.log(chalk.blue('\nDelete User\n'));
 
     const username = await this.prompt('Username: ');
     if (!username.trim()) {
-      console.log(chalk.red('❌ Username is required'));
+      console.log(chalk.red('Username is required'));
       return;
     }
 
     const confirm = await this.prompt(`Are you sure you want to delete user '${username}'? (yes/no): `);
     if (confirm.toLowerCase() !== 'yes') {
-      console.log(chalk.yellow('❌ Operation cancelled'));
+      console.log(chalk.yellow('Operation cancelled'));
       return;
     }
 
@@ -470,7 +466,7 @@ class AdminCLI {
       if (this.useDatabase) {
         const user = await this.userRepo.findByUsername(username.trim());
         if (!user) {
-          console.log(chalk.red('❌ User not found'));
+          console.log(chalk.red('User not found'));
           return;
         }
 
@@ -484,12 +480,12 @@ class AdminCLI {
           metadata: { userId: user.id }
         });
 
-        console.log(chalk.green(`✅ User '${user.username}' deleted successfully`));
+        console.log(chalk.green(`User '${user.username}' deleted successfully`));
       } else {
         await this.deleteUserFromFile(username.trim());
       }
     } catch (error) {
-      console.log(chalk.red(`❌ Error deleting user: ${(error as Error).message}`));
+      console.log(chalk.red(`Error deleting user: ${(error as Error).message}`));
     }
   }
 
@@ -503,11 +499,11 @@ class AdminCLI {
 
     users.splice(userIndex, 1);
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-    console.log(chalk.green(`✅ User '${username}' deleted successfully`));
+    console.log(chalk.green(`User '${username}' deleted successfully`));
   }
 
   async showAuditLog(): Promise<void> {
-    console.log(chalk.blue('\n📋 Audit Log\n'));
+    console.log(chalk.blue('\nAudit Log\n'));
 
     const limit = parseInt(await this.prompt('Number of entries to show (default 20): ') || '20');
 
@@ -520,7 +516,7 @@ class AdminCLI {
         this.displayAuditLogs(logs.slice(-limit).reverse());
       }
     } catch (error) {
-      console.log(chalk.red(`❌ Error fetching audit log: ${(error as Error).message}`));
+      console.log(chalk.red(`Error fetching audit log: ${(error as Error).message}`));
     }
   }
 
@@ -532,7 +528,7 @@ class AdminCLI {
 
     logs.forEach(log => {
       const timestamp = new Date(log.createdAt).toLocaleString();
-      const status = log.success ? chalk.green('✓') : chalk.red('✗');
+      const status = log.success ? chalk.green('OK') : chalk.red('FAIL');
       const user = log.username || 'Unknown';
 
       console.log(`${status} ${timestamp} | ${chalk.bold(user)} | ${log.action}`);
@@ -547,19 +543,19 @@ class AdminCLI {
   }
 
   async initializeDatabase(): Promise<void> {
-    console.log(chalk.blue('\n🗄️  Initialize Database\n'));
+    console.log(chalk.blue('\nInitialize Database\n'));
 
     try {
       const connected = await DatabaseConnection.testConnection();
       if (!connected) {
-        console.log(chalk.red('❌ Cannot connect to database'));
+        console.log(chalk.red('Cannot connect to database'));
         return;
       }
 
       // Run the schema
       const schemaPath = path.join(__dirname, '../../database/schema.sql');
       if (!fs.existsSync(schemaPath)) {
-        console.log(chalk.red(`❌ Schema file not found at: ${schemaPath}`));
+        console.log(chalk.red(`Schema file not found at: ${schemaPath}`));
         return;
       }
 
@@ -567,9 +563,9 @@ class AdminCLI {
       const pool = DatabaseConnection.getPool();
       await pool.query(schema);
 
-      console.log(chalk.green('✅ Database schema initialized successfully'));
+      console.log(chalk.green('Database schema initialized successfully'));
     } catch (error) {
-      console.log(chalk.red(`❌ Error initializing database: ${(error as Error).message}`));
+      console.log(chalk.red(`Error initializing database: ${(error as Error).message}`));
     }
   }
 
@@ -650,7 +646,7 @@ async function main() {
     .command('interactive')
     .description('Interactive mode')
     .action(async () => {
-      console.log(chalk.blue('\n🔐 Whirlcrypt Admin CLI - Interactive Mode\n'));
+      console.log(chalk.blue('\nWhirlcrypt Admin CLI - Interactive Mode\n'));
 
       while (true) {
         console.log(chalk.cyan('Available commands:'));
@@ -688,11 +684,11 @@ async function main() {
             await cli.initializeDatabase();
             break;
           case '0':
-            console.log(chalk.green('👋 Goodbye!'));
+            console.log(chalk.green('Goodbye!'));
             cli.close();
             return;
           default:
-            console.log(chalk.red('❌ Invalid option'));
+            console.log(chalk.red('Invalid option'));
         }
 
         console.log('\n' + '─'.repeat(50) + '\n');
@@ -709,7 +705,7 @@ async function main() {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log(chalk.yellow('\n👋 Goodbye!'));
+  console.log(chalk.yellow('\nGoodbye!'));
   DatabaseConnection.close();
   process.exit(0);
 });
@@ -722,7 +718,7 @@ process.on('SIGTERM', () => {
 // Run the CLI
 if (require.main === module) {
   main().catch(error => {
-    console.error(chalk.red(`❌ Fatal error: ${error.message}`));
+    console.error(chalk.red(`Fatal error: ${error.message}`));
     DatabaseConnection.close();
     process.exit(1);
   });

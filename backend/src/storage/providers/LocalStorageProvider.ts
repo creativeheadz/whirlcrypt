@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   StorageProvider,
   StorageProviderType,
@@ -43,7 +43,7 @@ export class LocalStorageProvider implements StorageProvider {
     }
 
     // Generate unique path structure
-    const fileId = metadata?.fileId || uuidv4();
+    const fileId = metadata?.fileId || randomUUID();
     const subdir = this.config.createSubdirs ? this.generateSubdirectory(fileId) : '';
     const safeFilename = this.sanitizeFilename(filename);
     const storagePath = join(subdir, `${fileId}-${safeFilename}`);
@@ -83,7 +83,7 @@ export class LocalStorageProvider implements StorageProvider {
       throw new Error('Storage provider not initialized');
     }
 
-    const fileId = metadata?.fileId || uuidv4();
+    const fileId = metadata?.fileId || randomUUID();
     const subdir = this.config.createSubdirs ? this.generateSubdirectory(fileId) : '';
     const safeFilename = this.sanitizeFilename(filename);
     const storagePath = join(subdir, `${fileId}-${safeFilename}`);

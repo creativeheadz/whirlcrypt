@@ -1,8 +1,8 @@
 # Whirlcrypt Security Assessment
 
-## 🛡️ Current Security Status
+## Current Security Status
 
-### ✅ Strong Security Features
+### Strong Security Features
 
 1. **Zero-Knowledge Architecture**
    - Encryption keys never stored on server
@@ -27,7 +27,7 @@
    - Automatic file expiration (24h default, 7 days max)
    - Secure deletion from both database and filesystem
 
-## ⚠️ Critical Security Gaps
+## Critical Security Gaps
 
 ### 1. **UNPROTECTED ADMIN ENDPOINTS** - HIGH RISK
 
@@ -39,7 +39,7 @@ curl http://localhost:3001/api/admin/config
 curl -X POST http://localhost:3001/api/admin/cleanup
 ```
 
-**Risk Level**: 🔴 **HIGH**
+**Risk Level**: **HIGH**
 - Information disclosure (system statistics, configuration)
 - Unauthorized cleanup operations
 - Potential for abuse or reconnaissance
@@ -55,7 +55,7 @@ curl -X POST http://localhost:3001/api/admin/cleanup
 - Application accessible to entire internal network
 - No network-level access controls
 
-**Risk Level**: 🟡 **MEDIUM**
+**Risk Level**: **MEDIUM**
 - Any device on internal network can access admin functions
 - Potential for lateral movement in case of network compromise
 
@@ -64,7 +64,7 @@ curl -X POST http://localhost:3001/api/admin/cleanup
 2. Consider VPN-only access for admin functions
 3. Network segmentation for sensitive operations
 
-## 🔧 Recommended Security Improvements
+## Recommended Security Improvements
 
 ### Priority 1: Admin Authentication
 
@@ -102,29 +102,29 @@ ADMIN_ENABLED=true
    - Additional security headers
    - Request filtering and rate limiting
 
-## 📊 Security Metrics
+## Security Metrics
 
 ### Current Protection Levels
 
 | Component | Security Level | Notes |
 |-----------|---------------|-------|
-| File Encryption | 🟢 **EXCELLENT** | RFC 8188, AES-128-GCM |
-| Database Security | 🟢 **GOOD** | Prepared statements, metadata only |
-| Rate Limiting | 🟢 **GOOD** | IP-based limits implemented |
-| Admin Access | 🔴 **POOR** | No authentication |
-| Network Security | 🟡 **FAIR** | Internal network only |
-| Audit Logging | 🟡 **FAIR** | Download logs only |
+| File Encryption | **EXCELLENT** | RFC 8188, AES-128-GCM |
+| Database Security | **GOOD** | Prepared statements, metadata only |
+| Rate Limiting | **GOOD** | IP-based limits implemented |
+| Admin Access | **POOR** | No authentication |
+| Network Security | **FAIR** | Internal network only |
+| Audit Logging | **FAIR** | Download logs only |
 
 ### Risk Assessment Matrix
 
 | Risk | Likelihood | Impact | Overall |
 |------|------------|--------|---------|
-| Admin Endpoint Abuse | High | Medium | 🔴 **HIGH** |
-| Data Breach | Low | High | 🟡 **MEDIUM** |
-| DoS Attack | Medium | Low | 🟡 **MEDIUM** |
-| Network Intrusion | Low | Medium | 🟢 **LOW** |
+| Admin Endpoint Abuse | High | Medium | **HIGH** |
+| Data Breach | Low | High | **MEDIUM** |
+| DoS Attack | Medium | Low | **MEDIUM** |
+| Network Intrusion | Low | Medium | **LOW** |
 
-## 🎯 Action Plan
+## Action Plan
 
 ### Immediate (Next 24 hours)
 1. **Implement admin authentication**
@@ -141,7 +141,7 @@ ADMIN_ENABLED=true
 2. **Code security audit**
 3. **Backup and disaster recovery testing**
 
-## 🔍 Security Testing
+## Security Testing
 
 ### Manual Tests You Can Run
 
@@ -168,7 +168,7 @@ ADMIN_ENABLED=true
      -F "filename=../../../etc/passwd"
    ```
 
-## 📋 Security Checklist
+## Security Checklist
 
 ### Before Production Deployment
 
@@ -183,7 +183,7 @@ ADMIN_ENABLED=true
 - [ ] **Incident response plan created**
 - [ ] **Security documentation updated**
 
-## 🚨 Incident Response
+## Incident Response
 
 ### If Admin Endpoints Are Compromised
 
@@ -203,7 +203,7 @@ ADMIN_ENABLED=true
    - Update security measures
    - Document lessons learned
 
-## 📞 Security Contacts
+## Security Contacts
 
 - **System Administrator**: andrei@whirlcrypt
 - **Security Team**: (to be defined)
@@ -213,4 +213,4 @@ ADMIN_ENABLED=true
 
 **Last Updated**: 2025-09-14  
 **Next Review**: 2025-09-21  
-**Status**: 🟡 **NEEDS ATTENTION** (Admin authentication required)
+**Status**: **NEEDS ATTENTION** (Admin authentication required)

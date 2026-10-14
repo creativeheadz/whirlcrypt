@@ -1,24 +1,22 @@
 #!/usr/bin/env node
 
-import dotenv from 'dotenv';
+// Must be the first import: loads .env before any module reads process.env.
+import 'dotenv/config';
 import { DatabaseConnection } from '../database/connection';
 import { AdminUserRepository, AdminAuditRepository } from '../database/models/AdminUser';
 
-// Load environment variables
-dotenv.config();
-
 async function createAdminUser() {
-  console.log('🔐 Creating initial admin user...\n');
+  console.log('Creating initial admin user...\n');
 
   try {
     // Test database connection
     const connected = await DatabaseConnection.testConnection();
     if (!connected) {
-      console.error('❌ Cannot connect to database');
+      console.error('Cannot connect to database');
       process.exit(1);
     }
 
-    console.log('✅ Connected to database');
+    console.log('Connected to database');
 
     const userRepo = new AdminUserRepository();
     const auditRepo = new AdminAuditRepository();
@@ -26,7 +24,7 @@ async function createAdminUser() {
     // Check if any admin users exist
     const existingUsers = await userRepo.listUsers();
     if (existingUsers.length > 0) {
-      console.log('⚠️  Admin users already exist:');
+      console.log('Admin users already exist:');
       existingUsers.forEach(user => {
         console.log(`   - ${user.username} (${user.email})`);
       });
@@ -63,11 +61,11 @@ async function createAdminUser() {
       }
     });
 
-    console.log('✅ Admin user created successfully!');
+    console.log('Admin user created successfully!');
     console.log('');
 
     if (user.mfaEnabled && user.mfaSecret) {
-      console.log('🔐 MFA Setup Required:');
+      console.log('MFA Setup Required:');
       console.log('');
       console.log(`Secret: ${user.mfaSecret}`);
       console.log('');
@@ -78,7 +76,7 @@ async function createAdminUser() {
       console.log('');
       
       if (user.mfaBackupCodes && user.mfaBackupCodes.length > 0) {
-        console.log('🔑 Backup Codes (save these securely):');
+        console.log('Backup Codes (save these securely):');
         user.mfaBackupCodes.forEach((code, index) => {
           console.log(`   ${index + 1}. ${code}`);
         });
@@ -86,20 +84,20 @@ async function createAdminUser() {
       }
     }
 
-    console.log('🚀 Next steps:');
+    console.log('Next steps:');
     console.log('1. Start the server: npm run dev');
     console.log('2. Login at: http://192.168.1.100:3001/api/admin/auth/login');
     console.log('3. Change the default password immediately');
     console.log('4. Use the CLI for user management: npm run admin');
     console.log('');
-    console.log('⚠️  SECURITY WARNING:');
+    console.log('SECURITY WARNING:');
     console.log('   - Change the default password immediately');
     console.log('   - Set up MFA if not already enabled');
     console.log('   - Review and update JWT_SECRET in .env file');
     console.log('');
 
   } catch (error) {
-    console.error('❌ Error creating admin user:', (error as Error).message);
+    console.error('Error creating admin user:', (error as Error).message);
     console.error('');
     console.error('Troubleshooting:');
     console.error('1. Ensure PostgreSQL is running');
@@ -113,7 +111,7 @@ async function createAdminUser() {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n👋 Goodbye!');
+  console.log('\nGoodbye!');
   DatabaseConnection.close();
   process.exit(0);
 });
@@ -126,7 +124,7 @@ process.on('SIGTERM', () => {
 // Run the script
 if (require.main === module) {
   createAdminUser().catch(error => {
-    console.error('❌ Fatal error:', error.message);
+    console.error('Fatal error:', error.message);
     DatabaseConnection.close();
     process.exit(1);
   });

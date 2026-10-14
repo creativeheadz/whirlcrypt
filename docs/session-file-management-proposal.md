@@ -1,9 +1,9 @@
 # Session-Based File Management Proposal
 
-## 🎯 **Objective**
+## **Objective**
 Allow users to track and manage their uploaded files within a browser session, including premature deletion capability.
 
-## 🔧 **Implementation Approach**
+## **Implementation Approach**
 
 ### **Frontend (Browser Storage)**
 ```typescript
@@ -110,25 +110,25 @@ const SessionFilesPanel: React.FC = () => {
 };
 ```
 
-## 🎨 **UI/UX Features**
+## **UI/UX Features**
 - Collapsible sidebar showing session files
 - File cards with upload time, expiry countdown
 - One-click delete with confirmation
 - Visual indicators for file status
 - Automatic cleanup of expired entries
 
-## 🔒 **Security Considerations**
+## **Security Considerations**
 - No authentication required (session-based only)
 - Files can only be deleted, not modified
 - Session storage cleared on browser close
 - No server-side session tracking (privacy-focused)
 
-## 📱 **Mobile Responsive**
+## **Mobile Responsive**
 - Swipe-to-delete on mobile
 - Compact file cards for small screens
 - Touch-friendly delete buttons
 
-## 🚀 **Implementation Priority**
+## **Implementation Priority**
 This would be a great next feature because:
 - Enhances user experience significantly
 - Maintains zero-knowledge architecture

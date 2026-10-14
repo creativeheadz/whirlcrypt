@@ -49,10 +49,12 @@ const Admin: React.FC = () => {
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Prefetch placeholder only; fetchData replaces it with live server values.
+  // Matches the backend default so a failed fetch can never stage 4 GB.
   const [configForm, setConfigForm] = useState({
     defaultRetentionHours: 24,
     maxRetentionHours: 168,
-    maxFileSize: 4294967296,
+    maxFileSize: 104857600,
   })
   const [configSaving, setConfigSaving] = useState(false)
   const [configSaved, setConfigSaved] = useState(false)
@@ -282,18 +284,18 @@ const Admin: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="folio block mb-1.5">Maximum retention (hours)</label>
+                <label className="folio block mb-1.5">Maximum retention (hours, up to 8760)</label>
                 <input
-                  type="number" min={1}
+                  type="number" min={1} max={8760}
                   value={configForm.maxRetentionHours}
                   onChange={e => setConfigForm(p => ({ ...p, maxRetentionHours: parseInt(e.target.value) || 1 }))}
                   className="input"
                 />
               </div>
               <div>
-                <label className="folio block mb-1.5">Maximum file size (MB)</label>
+                <label className="folio block mb-1.5">Maximum file size (MB, up to 10240)</label>
                 <input
-                  type="number" min={1}
+                  type="number" min={1} max={10240}
                   value={formatSizeInput(configForm.maxFileSize)}
                   onChange={e => setConfigForm(p => ({ ...p, maxFileSize: (parseInt(e.target.value) || 1) * 1024 * 1024 }))}
                   className="input"
@@ -333,6 +335,10 @@ const Admin: React.FC = () => {
               </span>
             )}
           </div>
+          <p className="folio mt-3" style={{ color: 'var(--amber)' }}>
+            Temporary override: applies immediately, resets to environment values on restart.
+            File size above the reverse proxy body limit has no effect on proxied uploads.
+          </p>
         </section>
       )}
 

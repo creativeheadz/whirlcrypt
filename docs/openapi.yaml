@@ -2,18 +2,18 @@ openapi: 3.0.3
 info:
   title: Whirlcrypt API
   description: |
-    🌀 **Whirlcrypt** - Secure file sharing with RFC 8188 encryption
+    **Whirlcrypt** - Secure file sharing with RFC 8188 encryption
     
     End-to-end encrypted file sharing platform that ensures your files are encrypted 
     before they leave your browser. Built with security, privacy, and simplicity in mind.
     
-    ## 🔐 Security Features
+    ## Security Features
     - RFC 8188 compliant encryption (AES-128-GCM)
     - Zero server-side key access
     - Automatic file expiration
     - Rate limiting and security headers
     
-    ## 🚀 Getting Started  
+    ## Getting Started  
     1. Upload files with client-side encryption
     2. Share secure links with embedded keys (URL fragments)
     3. Files automatically expire based on retention settings
@@ -103,8 +103,10 @@ paths:
       tags: [download]
       summary: Download encrypted file
       description: |
-        Download and decrypt a file using the provided encryption key.
-        The key can be provided via header or query parameter.
+        Download the encrypted file bytes. No key is sent to the server: the
+        decryption key and salt travel in the share URL fragment
+        (/download/:id#v=2&k=...&s=...), which browsers never transmit, and
+        the client decrypts locally after downloading.
       parameters:
         - name: id
           in: path
@@ -114,19 +116,6 @@ paths:
             format: uuid
           description: Unique file identifier
           example: "123e4567-e89b-12d3-a456-426614174000"
-        - name: key
-          in: query
-          schema:
-            type: string
-            pattern: '^[0-9a-fA-F]{32}$'
-          description: Hex-encoded encryption key (alternative to header)
-        - name: x-encryption-key
-          in: header
-          schema:
-            type: string
-            pattern: '^[0-9a-fA-F]{32}$'
-          description: Hex-encoded encryption key
-          example: "a1b2c3d4e5f67890abcdef1234567890"
       responses:
         '200':
           description: File downloaded successfully
@@ -524,8 +513,8 @@ components:
             error: "Internal server error"
 
   securitySchemes:
-    EncryptionKey:
-      type: apiKey
-      in: header
-      name: x-encryption-key
-      description: Hex-encoded AES encryption key for file decryption
+    AdminJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Admin JWT from /api/admin/auth/login (TOTP MFA when enabled)

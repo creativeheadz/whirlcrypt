@@ -69,7 +69,7 @@ export const handleCSPViolation = (req: Request, res: Response) => {
   const violation = req.body;
 
   // Log CSP violations for security monitoring
-  console.warn('🚨 CSP Violation Report:', {
+  console.warn('CSP Violation Report:', {
     timestamp: new Date().toISOString(),
     userAgent: req.headers['user-agent'],
     ip: req.ip,
@@ -94,6 +94,29 @@ export const handleCSPViolation = (req: Request, res: Response) => {
 };
 
 /**
+ * Rate-limit bucket key. req.ip ONLY: Express derives it from
+ * X-Forwarded-For according to the trust proxy setting (see index.ts).
+ * Never parse proxy headers here - the leftmost X-Forwarded-For entry is
+ * client-controlled and would let anyone pick a fresh bucket per request.
+ */
+export const clientIpKeyGenerator = (req: Request): string => {
+  return req.ip || 'unknown';
+};
+
+/**
+ * Paths exempt from the general rate limiter. Static assets only - API
+ * routes (including downloads) are always limited.
+ */
+export const shouldSkipRateLimit = (req: Request): boolean => {
+  return req.path.startsWith('/assets/') ||
+         req.path.startsWith('/favicon') ||
+         req.path.endsWith('.js') ||
+         req.path.endsWith('.css') ||
+         req.path.endsWith('.png') ||
+         req.path.endsWith('.ico');
+};
+
+/**
  * Rate limiting middleware
  */
 export const rateLimitMiddleware = rateLimit({
@@ -104,25 +127,25 @@ export const rateLimitMiddleware = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // CRITICAL: Use IP address for rate limiting (per-IP, not global)
-  keyGenerator: (req: Request) => {
-    // Get real IP from proxy headers or fallback to req.ip
-    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-           req.headers['x-real-ip'] as string ||
-           req.connection.remoteAddress ||
-           req.ip ||
-           'unknown';
+  keyGenerator: clientIpKeyGenerator,
+  skip: shouldSkipRateLimit
+});
+
+/**
+ * Download rate limiting. Full-file downloads cost real bandwidth, so they
+ * get their own bucket on top of the general limiter. Applied to
+ * GET /api/download/:id only - metadata (/info) stays under the general
+ * limiter so clients can check a link without spending download budget.
+ */
+export const downloadRateLimitMiddleware = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  message: {
+    error: 'Too many downloads, please try again later'
   },
-  // Skip rate limiting for static assets AND file downloads
-  skip: (req: Request) => {
-    return req.path.startsWith('/assets/') ||
-           req.path.startsWith('/favicon') ||
-           req.path.endsWith('.js') ||
-           req.path.endsWith('.css') ||
-           req.path.endsWith('.png') ||
-           req.path.endsWith('.ico') ||
-           (req.method === 'GET' && req.path.startsWith('/api/download/'));
-  }
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIpKeyGenerator
 });
 
 /**
@@ -136,15 +159,7 @@ export const uploadRateLimitMiddleware = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // CRITICAL: Use IP address for rate limiting (per-IP, not global)
-  keyGenerator: (req: Request) => {
-    // Get real IP from proxy headers or fallback to req.ip
-    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-           req.headers['x-real-ip'] as string ||
-           req.connection.remoteAddress ||
-           req.ip ||
-           'unknown';
-  }
+  keyGenerator: clientIpKeyGenerator
 });
 
 /**

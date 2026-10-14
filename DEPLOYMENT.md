@@ -1,10 +1,10 @@
 # Whirlcrypt v2.0 Deployment Guide
 
-## 🎉 Installation Complete!
+## Installation Complete!
 
 Your Whirlcrypt secure file sharing application v2.0 has been successfully installed and configured on your dedicated server with **full database support** and enhanced security features.
 
-## 🌐 Access Information
+## Access Information
 
 ### Development Mode (Currently Running)
 - **Frontend**: http://192.168.1.100:5173
@@ -16,16 +16,16 @@ Your Whirlcrypt secure file sharing application v2.0 has been successfully insta
 ### Internal Network Access
 The application is configured to be accessible from your internal network at IP address `192.168.1.100`.
 
-## 🗄️ Database Configuration
+## Database Configuration
 
-### PostgreSQL Setup ✅
+### PostgreSQL Setup
 - **Database**: PostgreSQL 16.10
 - **Database Name**: whirlcrypt_dev
 - **User**: whirlcrypt_user
 - **Status**: Connected and operational
 - **Schema**: Automatically initialized with tables for files and download logs
 
-## 🚀 Running the Application
+## Running the Application
 
 ### Development Mode (Current)
 The application is currently running in development mode with hot reload:
@@ -56,7 +56,7 @@ sudo systemctl status whirlcrypt
 sudo journalctl -u whirlcrypt -f
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 /home/andrei/whirlcrypt/
@@ -69,7 +69,7 @@ sudo journalctl -u whirlcrypt -f
 └── nginx-*.conf       # Nginx configuration
 ```
 
-## 🔧 Configuration Files
+## Configuration Files
 
 ### Backend Environment (.env)
 Located at `backend/.env` with the following settings:
@@ -84,7 +84,7 @@ Located at `backend/.env` with the following settings:
 - Proxies API requests to backend
 - Built with Vite for optimal performance
 
-## 🌐 Optional: Nginx Setup
+## Optional: Nginx Setup
 
 For production deployment with nginx:
 
@@ -110,7 +110,7 @@ For production deployment with nginx:
    npm run build:frontend
    ```
 
-## 🔒 Enhanced Security Features v2.0
+## Enhanced Security Features v2.0
 
 ### Core Security
 - **End-to-end encryption** using RFC 8188 standard
@@ -133,7 +133,7 @@ For production deployment with nginx:
 - **Metadata separation** - Only non-sensitive data in database
 - **Graceful degradation** - Falls back to filesystem if DB unavailable
 
-## 📊 Monitoring
+## Monitoring
 
 ### Check Service Status
 ```bash
@@ -150,7 +150,7 @@ sudo journalctl -u whirlcrypt -f
 curl http://192.168.1.100:3001/api/health
 ```
 
-## 🛠️ Maintenance
+## Maintenance
 
 ### Update Application
 ```bash
@@ -171,7 +171,7 @@ curl -X POST http://192.168.1.100:3001/api/admin/cleanup
 curl http://192.168.1.100:3001/api/admin/stats
 ```
 
-## 🔥 Firewall Configuration
+## Firewall Configuration
 
 Currently, the firewall is inactive. If you enable it, make sure to allow the required ports:
 ```bash
@@ -180,14 +180,14 @@ sudo ufw allow 5173  # Frontend (development)
 sudo ufw allow 80    # HTTP (if using nginx)
 ```
 
-## 📞 Support
+## Support
 
 For issues or questions:
 - Check the logs: `sudo journalctl -u whirlcrypt -f`
 - Review the API documentation: http://192.168.1.100:3001/api/docs
 - Check the original repository: https://github.com/creativeheadz/whirlcrypt
 
-## 🎯 Next Steps
+## Next Steps
 
 1. Test the application by accessing http://192.168.1.100:5173
 2. Upload a test file to verify encryption/decryption works

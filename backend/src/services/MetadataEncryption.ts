@@ -1,4 +1,5 @@
 import { randomBytes, createCipheriv, createDecipheriv, createHmac } from 'crypto';
+import { DEFAULT_METADATA_KEY } from '../config/defaultSecrets';
 
 /**
  * Metadata Encryption Service - Wormhole-inspired approach
@@ -29,9 +30,32 @@ export class MetadataEncryption {
   private static readonly SALT_LENGTH = 32; // 256 bits
   private static readonly TAG_LENGTH = 16; // 128 bits
   
-  // Master key for metadata encryption (should be from environment)
-  private static readonly MASTER_KEY = process.env.METADATA_ENCRYPTION_KEY || 
-    'whirlcrypt-metadata-master-key-change-in-production-32-bytes!!';
+  private static warnedAboutDefaultKey = false;
+
+  // Master key for metadata encryption. Read lazily so tests and CLIs can
+  // set the environment first; production refuses to run without a real key.
+  private static get MASTER_KEY(): string {
+    const fromEnv = process.env.METADATA_ENCRYPTION_KEY;
+    if (fromEnv && fromEnv.length > 0) {
+      return fromEnv;
+    }
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('METADATA_ENCRYPTION_KEY must be set in production');
+    }
+    if (!this.warnedAboutDefaultKey) {
+      console.warn('METADATA_ENCRYPTION_KEY is not set - using insecure development default');
+      this.warnedAboutDefaultKey = true;
+    }
+    return DEFAULT_METADATA_KEY;
+  }
+
+  /**
+   * Touch the key outside any try/catch so a missing production key throws
+   * its real error instead of being masked by a generic catch-all.
+   */
+  private static assertKeyConfigured(): void {
+    void this.MASTER_KEY;
+  }
 
   /**
    * Derive encryption key from master key using HKDF-like approach
@@ -47,6 +71,7 @@ export class MetadataEncryption {
    * Encrypt file metadata using AES-GCM
    */
   static encryptMetadata(metadata: FileMetadataToEncrypt): EncryptedMetadata {
+    this.assertKeyConfigured();
     try {
       // Generate random salt and IV
       const keyDerivationSalt = randomBytes(this.SALT_LENGTH);
@@ -98,6 +123,7 @@ export class MetadataEncryption {
    * Decrypt file metadata
    */
   static decryptMetadata(encrypted: EncryptedMetadata): FileMetadataToEncrypt {
+    this.assertKeyConfigured();
     try {
       // Derive decryption key
       const key = this.deriveKey(encrypted.keyDerivationSalt);

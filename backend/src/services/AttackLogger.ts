@@ -60,7 +60,7 @@ export class AttackLogger {
 
     try {
       await this.pool.query(query, values);
-      console.log(`🚨 Attack logged: ${attackInfo.ip} -> ${attackInfo.path} (${attackInfo.category})`);
+      console.log(`Attack logged: ${attackInfo.ip} -> ${attackInfo.path} (${attackInfo.category})`);
     } catch (error) {
       console.error('Error logging attack:', error);
     }
@@ -287,7 +287,7 @@ export class AttackLogger {
       const deletedCount = result.rowCount || 0;
       
       if (deletedCount > 0) {
-        console.log(`🧹 Cleaned up ${deletedCount} old attack logs`);
+        console.log(`Cleaned up ${deletedCount} old attack logs`);
       }
       
       return deletedCount;

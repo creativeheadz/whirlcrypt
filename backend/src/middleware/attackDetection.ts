@@ -129,13 +129,13 @@ export class AttackDetectionMiddleware {
           await this.banManager.permanentBan(ip, attackInfo);
           return res.status(403).json({ 
             error: 'Permanently banned',
-            message: 'Nice try, script kiddie! 😂'
+            message: 'Nice try, script kiddie!'
           });
         } else if (attackInfo.attackType === 'temporary_ban') {
           await this.banManager.temporaryBan(ip, attackInfo, 15); // 15 minutes
           return res.status(403).json({ 
             error: 'Temporarily banned',
-            message: 'Take a 15-minute timeout to think about what you did! ⏰'
+            message: 'Take a 15-minute timeout to think about what you did!'
           });
         }
       }
@@ -200,7 +200,7 @@ export class AttackDetectionMiddleware {
 
         return res.status(403).json({
           error: 'Temporarily banned',
-          message: 'Too many 404s! Take a break and read the documentation! 📚'
+          message: 'Too many 404s! Take a break and read the documentation!'
         });
       }
 
@@ -279,34 +279,34 @@ export class AttackDetectionMiddleware {
   private static getSarcasticMessage(category: AttackInfo['category']): string {
     const messages = {
       wordpress: [
-        "Still looking for WordPress? Try WordPress.com! 😂",
+        "Still looking for WordPress? Try WordPress.com!",
         "This isn't your grandma's blog, script kiddie!",
-        "wp-admin? More like wp-BANNED! 🔨"
+        "wp-admin? More like wp-BANNED!"
       ],
       admin: [
-        "Admin panel? The only admin here is the ban hammer! ⚡",
-        "PHPMyAdmin? More like PHPMyBAN! 🚫",
-        "Nice try, but this isn't 2005! 🕰️"
+        "Admin panel? The only admin here is the ban hammer!",
+        "PHPMyAdmin? More like PHPMyBAN!",
+        "Nice try, but this isn't 2005!"
       ],
       env: [
-        "Looking for secrets? Here's one: you're banned! 🤫",
-        "The only .env you'll find is .env-BANNED! 📁",
-        "Secrets are for friends, not script kiddies! 👥"
+        "Looking for secrets? Here's one: you're banned!",
+        "The only .env you'll find is .env-BANNED!",
+        "Secrets are for friends, not script kiddies!"
       ],
       scanner: [
-        "Automated tools? How original! 🤖",
-        "Beep boop, you're banned! 🚫",
-        "Nice scanner, shame about the ban! 🔍"
+        "Automated tools? How original!",
+        "Beep boop, you're banned!",
+        "Nice scanner, shame about the ban!"
       ],
       exploit: [
-        "Shell access? The only shell you'll get is banned! 🐚",
-        "System commands? System says NO! ❌",
-        "Exploit attempt? More like exploit FAILED! 💥"
+        "Shell access? The only shell you'll get is banned!",
+        "System commands? System says NO!",
+        "Exploit attempt? More like exploit FAILED!"
       ],
       random404: [
-        "404: Your access privileges not found! 🔍",
-        "Random guessing? Random banning! 🎲",
-        "Keep trying, we have all day to ban you! ⏰"
+        "404: Your access privileges not found!",
+        "Random guessing? Random banning!",
+        "Keep trying, we have all day to ban you!"
       ]
     };
 
@@ -315,16 +315,10 @@ export class AttackDetectionMiddleware {
   }
 
   /**
-   * Get client IP address (handles proxies)
+   * Get client IP address. req.ip only - trust proxy is configured centrally
+   * (see index.ts), so Express already resolved any proxy headers safely.
    */
   private static getClientIP(req: Request): string {
-    return (
-      req.get('CF-Connecting-IP') ||
-      req.get('X-Forwarded-For')?.split(',')[0] ||
-      req.get('X-Real-IP') ||
-      req.connection.remoteAddress ||
-      req.socket.remoteAddress ||
-      'unknown'
-    ).trim();
+    return req.ip || 'unknown';
   }
 }

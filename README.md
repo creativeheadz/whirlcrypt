@@ -5,26 +5,26 @@
   
   A secure file sharing application inspired by wormhole.app, built with end-to-end encryption using RFC 8188 standard.
   
-  [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-https://whirlcrypt.co.uk-orange)](https://whirlcrypt.co.uk/)
-  [![API Docs](https://img.shields.io/badge/📚_API_Docs-Interactive-blue)](https://creativeheadz.github.io/whirlcrypt/api.html)
+  [![Live Demo](https://img.shields.io/badge/Live_Demo-https://whirlcrypt.co.uk-orange)](https://whirlcrypt.co.uk/)
+  [![API Docs](https://img.shields.io/badge/API_Docs-Interactive-blue)](https://creativeheadz.github.io/whirlcrypt/api.html)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 </div>
 
-## ✨ Features
+## Features
 
-- 🔒 **End-to-end encryption**: Files are encrypted in the browser before upload
-- 🛡️ **RFC 8188 compliance**: Uses industry-standard Encrypted Content-Encoding for HTTP
-- 🚫 **Zero server access**: Encryption keys never leave your browser
-- ⏰ **Automatic expiration**: Files are automatically deleted after retention period
-- 🔐 **No tracking**: No ads, analytics, or user tracking
-- 🎨 **Modern UI**: Beautiful glassmorphism design with animated geometric background
-- 📱 **Mobile friendly**: Works seamlessly on all devices
-- 🚀 **Fast & lightweight**: Built with React + Vite for optimal performance
-- 🗄️ **Database-backed**: PostgreSQL integration with graceful filesystem fallback
-- 🐳 **Docker support**: Complete containerized development environment
-- 🔧 **Configurable storage**: Pluggable storage providers (Local, S3, GCS, Azure planned)
+- **End-to-end encryption**: Files are encrypted in the browser before upload
+- **RFC 8188 compliance**: Uses industry-standard Encrypted Content-Encoding for HTTP
+- **Zero server access**: Encryption keys never leave your browser
+- **Automatic expiration**: Files are automatically deleted after retention period
+- **No tracking**: No ads, analytics, or user tracking
+- **Modern UI**: Beautiful glassmorphism design with animated geometric background
+- **Mobile friendly**: Works seamlessly on all devices
+- **Fast & lightweight**: Built with React + Vite for optimal performance
+- **Database-backed**: PostgreSQL integration with graceful filesystem fallback
+- **Docker support**: Complete containerized development environment
+- **Configurable storage**: Pluggable storage providers (Local, S3, GCS, Azure planned)
 
-## 🖥️ Screenshots
+## Screenshots
 
 <div align="center">
   <img src="screenshots/2025-09-15 13_28_54-.png" alt="Upload Interface - Secure file sharing with glassmorphism design" width="30%" />
@@ -34,11 +34,11 @@
 
 *Beautiful white glassmorphism design with animated geometric background*
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+ (22 recommended, matches the Docker image)
 - npm or yarn
 - PostgreSQL (optional - will fallback to filesystem)
 - Docker & Docker Compose (optional - for full development environment)
@@ -47,8 +47,8 @@
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd Fileshare
+git clone https://github.com/creativeheadz/whirlcrypt.git
+cd whirlcrypt
 
 # Run automated setup script
 ./scripts/setup.sh --dev
@@ -105,7 +105,7 @@ docker-compose up --build
 - **Database Admin**: http://localhost:8080 (Adminer)
 - **Redis Insight**: http://localhost:8001
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 fileshare/
@@ -133,7 +133,7 @@ fileshare/
 └── nginx.conf              # Nginx reverse proxy configuration
 ```
 
-## 🛠️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -202,23 +202,23 @@ S3_SECRET_ACCESS_KEY=your-secret-key
    npm start
    ```
 
-## 📚 API Documentation
+## API Documentation
 
-### 🌐 **Live Documentation**
+### **Live Documentation**
 Beautiful, interactive API documentation with glassmorphism design:
 
-- **[📖 Complete API Reference](https://creativeheadz.github.io/whirlcrypt/api.html)** - Full documentation with examples
-- **[⚙️ OpenAPI Specification](https://creativeheadz.github.io/whirlcrypt/openapi.yaml)** - YAML spec for integration  
-- **[🚀 Interactive Explorer](https://editor.swagger.io/?url=https://creativeheadz.github.io/whirlcrypt/openapi.yaml)** - Try the API live
+- **[Complete API Reference](https://creativeheadz.github.io/whirlcrypt/api.html)** - Full documentation with examples
+- **[OpenAPI Specification](https://creativeheadz.github.io/whirlcrypt/openapi.yaml)** - YAML spec for integration  
+- **[Interactive Explorer](https://editor.swagger.io/?url=https://creativeheadz.github.io/whirlcrypt/openapi.yaml)** - Try the API live
 
-### 🔧 **Development**
+### **Development**
 - **Local API Docs**: http://localhost:3001/api/docs (Swagger UI)
 - **Production**: https://your-domain.com/api/docs
 
-### 📋 **Quick Reference**
+### **Quick Reference**
 See [docs/API.md](docs/API.md) for detailed markdown documentation.
 
-### 🚀 **Quick API Overview**
+### **Quick API Overview**
 
 **Upload**
 - `POST /api/upload` - Upload encrypted file with metadata
@@ -228,25 +228,29 @@ See [docs/API.md](docs/API.md) for detailed markdown documentation.
 - `GET /api/download/:id` - Download encrypted file (requires encryption key)
 - `GET /api/download/:id/info` - Get file metadata without downloading
 
-**Admin**
+**Admin** (JWT + optional MFA; see ADMIN_AUTHENTICATION.md)
 - `GET /api/admin/stats` - Storage statistics and configuration
-- `POST /api/admin/cleanup` - Manual cleanup of expired files  
+- `POST /api/admin/cleanup` - Manual cleanup of expired files
 - `GET /api/admin/config` - Current server configuration
-- `PUT /api/admin/config` - Update configuration (runtime only)
+- `PUT /api/admin/config` - Temporary validated override (resets to environment values on restart)
+
+**Config**
+- `GET /api/config` - Public upload limits (max file size, retention) so the uploader can check before encrypting
 
 **Health**
 - `GET /api/health` - Service health check and version info
 
-### 🔐 **Authentication**
+### **Authentication**
 - Most endpoints are public but rate-limited
-- Download endpoints require encryption key (header: `x-encryption-key`)
-- Admin endpoints have no authentication (add auth for production!)
+- Download endpoints need no header: the decryption key travels in the URL fragment, which browsers never send to the server (it is scrubbed from the address bar after parsing)
+- Admin endpoints require JWT authentication with optional TOTP MFA
 
-### 📊 **Rate Limits**
-- Upload: 10 requests per 15 minutes per IP
-- Other endpoints: 100 requests per 15 minutes per IP
+### **Rate Limits** (per IP, per 15 minutes)
+- Upload: 10 requests
+- Full-file downloads: 30 requests (metadata checks fall under the general bucket)
+- Other endpoints: 100 requests
 
-## 🛡️ Security Implementation
+## Security Implementation
 
 ### Encryption Process
 
@@ -263,7 +267,7 @@ See [docs/API.md](docs/API.md) for detailed markdown documentation.
 - Referrer-Policy: strict-origin-when-cross-origin
 - Rate limiting on uploads and API calls
 
-## 📊 Admin Panel
+## Admin Panel
 
 Access the admin panel at `/admin` to:
 - View storage statistics
@@ -271,7 +275,7 @@ Access the admin panel at `/admin` to:
 - Manually trigger cleanup
 - Monitor system health
 
-## 🔍 How It Works
+## How It Works
 
 1. **Upload Process:**
    - Generate encryption keys in browser
@@ -290,27 +294,28 @@ Access the admin panel at `/admin` to:
    - Files automatically expire
    - All encryption/decryption happens client-side
 
-## 🧪 Development
+## Development
 
 ### Running Tests
 ```bash
-# Backend tests
+# Backend tests (node:test via tsx, no database needed)
 cd backend && npm test
 
-# Frontend tests  
+# Frontend tests
 cd frontend && npm test
 ```
 
-### Code Style
+### Typechecking
 ```bash
-# Lint code
-npm run lint
+# Backend
+./node_modules/.bin/tsc --noEmit -p backend/tsconfig.json
 
-# Format code
-npm run format
+# Frontend
+./node_modules/.bin/tsc --noEmit -p frontend/tsconfig.json
 ```
+No linter or formatter is configured yet.
 
-## 🚀 Architecture & Deployment
+## Architecture & Deployment
 
 ### Architecture v2.0
 
@@ -352,13 +357,13 @@ npm start
 ### Production Considerations
 
 1. **Database**: PostgreSQL recommended for production (included in Docker setup)
-2. **Storage**: Use S3/GCS for better scalability and reliability
+2. **Storage**: Local disk works; S3/GCS providers are planned for larger scale
 3. **Monitoring**: Add structured logging and health monitoring
-4. **Security**: Configure authentication for admin endpoints
+4. **Security**: Set strong `JWT_SECRET`, `METADATA_ENCRYPTION_KEY`, and `DB_PASSWORD` (production refuses to boot on the dev defaults); put the app behind TLS
 5. **Backup**: Implement database and file backup strategies
 6. **CDN**: Use CDN for frontend assets and large file downloads
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -366,11 +371,11 @@ npm start
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📄 License
+## License
 
 MIT License - see LICENSE file for details
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Inspired by [wormhole.app](https://wormhole.app)
 - Based on [RFC 8188](https://tools.ietf.org/html/rfc8188) - Encrypted Content-Encoding for HTTP

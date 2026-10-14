@@ -1,0 +1,20 @@
+# Dependabot: one npm workspace root (backend/frontend/shared resolve through
+# the root lockfile). Patch/minor updates arrive grouped; each major arrives
+# alone so it gets its own review and test pass (notably any future Vite
+# major, which also constrains the Node runtime version).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

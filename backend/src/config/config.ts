@@ -1,4 +1,39 @@
 import { RetentionConfig } from '../types';
+import { COMPOSE_DEV_DB_PASSWORD, DEFAULT_DB_PASSWORD, DEFAULT_JWT_SECRET, DEFAULT_METADATA_KEY } from './defaultSecrets';
+
+/**
+ * Secrets that must never be weak-or-default in production. Pure function of
+ * (env, nodeEnv) so it can be unit-tested; the module calls it on load and
+ * refuses to boot when it reports errors.
+ */
+export function validateProductionSecrets(
+  env: NodeJS.ProcessEnv,
+  nodeEnv: string
+): string[] {
+  if (nodeEnv !== 'production') {
+    return [];
+  }
+  const errors: string[] = [];
+  const jwtSecret = env.JWT_SECRET;
+  if (!jwtSecret || jwtSecret === DEFAULT_JWT_SECRET) {
+    errors.push('JWT_SECRET is missing or still the insecure default');
+  } else if (jwtSecret.length < 32) {
+    errors.push('JWT_SECRET must be at least 32 characters long');
+  }
+  const metadataKey = env.METADATA_ENCRYPTION_KEY;
+  if (!metadataKey || metadataKey === DEFAULT_METADATA_KEY) {
+    errors.push('METADATA_ENCRYPTION_KEY is missing or still the insecure default');
+  } else if (metadataKey.length < 16) {
+    errors.push('METADATA_ENCRYPTION_KEY must be at least 16 characters long');
+  }
+  const dbPassword = env.DB_PASSWORD;
+  if (!dbPassword || dbPassword === DEFAULT_DB_PASSWORD || dbPassword === COMPOSE_DEV_DB_PASSWORD) {
+    errors.push('DB_PASSWORD is missing or still a documented dev-only value');
+  } else if (dbPassword.length < 12) {
+    errors.push('DB_PASSWORD must be at least 12 characters long');
+  }
+  return errors;
+}
 
 export interface DatabaseConfig {
   host: string;
@@ -102,3 +137,13 @@ export const config: AppConfig = {
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100')
   }
 };
+
+// Fail closed: never boot production on missing or default secrets.
+const secretErrors = validateProductionSecrets(process.env, config.nodeEnv);
+if (secretErrors.length > 0) {
+  throw new Error(
+    'Refusing to start in production with insecure secrets:\n' +
+    secretErrors.map((e) => `  - ${e}`).join('\n') +
+    '\nGenerate values with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64\'))"'
+  );
+}

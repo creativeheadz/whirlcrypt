@@ -31,15 +31,15 @@ log() {
 }
 
 success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}$1${NC}"
 }
 
 warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}$1${NC}"
 }
 
 error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}$1${NC}"
     exit 1
 }
 
@@ -235,7 +235,7 @@ main() {
     echo ""
     
     if [[ "$AUTO_MODE" == "false" ]]; then
-        echo -e "${RED}⚠️  This will modify your PostgreSQL configuration!${NC}"
+        echo -e "${RED}This will modify your PostgreSQL configuration!${NC}"
         echo -e "${YELLOW}Make sure you have a backup of your data before proceeding.${NC}"
         echo ""
         prompt_continue

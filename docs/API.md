@@ -1,17 +1,17 @@
-# 🌀 Whirlcrypt API Documentation
+# Whirlcrypt API Documentation
 
 Complete API reference for Whirlcrypt secure file sharing platform.
 
 > **Latest Update**: Fixed GitHub Pages deployment workflow
 
-## 🔗 Base URL
+## Base URL
 
 ```
 http://localhost:3001/api  # Development
 https://your-domain.com/api  # Production
 ```
 
-## 🔐 Authentication
+## Authentication
 
 Most endpoints are public, but some require encryption keys or are rate-limited:
 - **Upload endpoints**: Rate limited (10 uploads per 15 min per IP)
@@ -20,7 +20,7 @@ Most endpoints are public, but some require encryption keys or are rate-limited:
 
 ---
 
-## 📤 Upload Endpoints
+## Upload Endpoints
 
 ### Upload File
 
@@ -74,45 +74,35 @@ const response = await fetch('/api/upload', {
 
 ---
 
-## 📥 Download Endpoints
+## Download Endpoints
 
 ### Download File
 
-**`GET /download/:id`**
+**`GET /api/download/:id`**
 
-Download and decrypt a file using the provided encryption key.
-
-**Headers:**
-```
-x-encryption-key: string    # Hex-encoded encryption key
-```
-
-**Alternative Query Parameter:**
-```
-GET /download/:id?key=hex-encoded-key
-```
+Download the encrypted file bytes. No key is sent: the decryption key and salt
+travel in the share URL's fragment (`/download/:id#v=2&k=...&s=...`), which
+browsers never transmit, and the client decrypts locally after downloading.
 
 **Response (200):**
-- **Content-Type**: Original file MIME type
-- **Content-Disposition**: `attachment; filename="original-name.ext"`
-- **Body**: Binary file data (decrypted)
+- **Content-Type**: `application/octet-stream` (always; the payload is ciphertext)
+- **Content-Disposition**: `attachment` (filename is inside the encrypted envelope)
+- **Body**: Binary file data (still encrypted; decrypt client-side per RFC 8188)
 
 **Error Responses:**
-- `400` - Missing or invalid encryption key
 - `404` - File not found or expired
-- `500` - Decryption failed
+- `429` - Too many downloads (30 per 15 minutes per IP)
+- `500` - Download failed
 
 **Example:**
 ```javascript
-const response = await fetch(`/api/download/${fileId}`, {
-  headers: {
-    'x-encryption-key': encryptionKeyHex
-  }
-});
+const response = await fetch(`/api/download/${fileId}`);
+// No headers needed. Decrypt response bytes in the browser using the key
+// and salt parsed from the share URL fragment.
 
 if (response.ok) {
   const blob = await response.blob();
-  // Trigger download or process file
+  // Decrypt, then trigger download or process file
 }
 ```
 
@@ -139,7 +129,7 @@ Get file metadata without downloading the actual file.
 
 ---
 
-## ⚙️ Admin Endpoints
+## Admin Endpoints
 
 ### Get Storage Statistics
 
@@ -229,7 +219,7 @@ Update server configuration (runtime only).
 
 ---
 
-## 🏥 Health Check
+## Health Check
 
 ### Service Health
 
@@ -248,7 +238,7 @@ Check service status and version.
 
 ---
 
-## 📊 Rate Limits
+## Rate Limits
 
 | Endpoint | Limit | Window |
 |----------|-------|--------|
@@ -265,7 +255,7 @@ X-RateLimit-Reset: 1694523600
 
 ---
 
-## 🔒 Security Features
+## Security Features
 
 ### Request Security
 - **CORS**: Configurable origins
@@ -282,7 +272,7 @@ X-RateLimit-Reset: 1694523600
 
 ---
 
-## 🐛 Error Handling
+## Error Handling
 
 All error responses follow this format:
 
@@ -303,7 +293,7 @@ All error responses follow this format:
 
 ---
 
-## 🔧 Development Examples
+## Development Examples
 
 ### Complete Upload/Download Flow
 
@@ -329,17 +319,16 @@ const uploadResponse = await fetch('/api/upload', {
 
 const { id, downloadUrl, expiresAt } = await uploadResponse.json();
 
-// 4. Create shareable URL with embedded keys
-const shareUrl = `${window.location.origin}/download/${id}#key=${arrayToHex(key)}&salt=${arrayToHex(salt)}`;
+// 4. Create shareable URL with embedded keys (v2 fragment format; the
+// fragment is never sent to the server)
+const shareUrl = `${window.location.origin}/download/${id}#v=2&k=${toBase64Url(key)}&s=${toBase64Url(salt)}`;
 
-// 5. Download file (when accessed via share URL)
-const downloadResponse = await fetch(`/api/download/${id}`, {
-  headers: {
-    'x-encryption-key': arrayToHex(key)
-  }
-});
+// 5. Download file (when accessed via share URL) - no key header; parse the
+// key and salt from the fragment, download the ciphertext, decrypt locally
+const downloadResponse = await fetch(`/api/download/${id}`);
 
-const decryptedFile = await downloadResponse.blob();
+const encryptedBytes = await downloadResponse.blob();
+// ... decrypt with the fragment key/salt, then use the plaintext ...
 ```
 
 ### Admin Dashboard Data
@@ -366,7 +355,7 @@ const newConfig = await fetch('/api/admin/config', {
 
 ---
 
-## 🚀 Production Considerations
+## Production Considerations
 
 1. **Authentication**: Add API keys or JWT for admin endpoints
 2. **HTTPS**: Always use TLS in production
@@ -378,7 +367,7 @@ const newConfig = await fetch('/api/admin/config', {
 
 ---
 
-## 📱 Client SDKs
+## Client SDKs
 
 Consider implementing client libraries for:
 - **JavaScript/TypeScript** - Web and Node.js
@@ -388,10 +377,10 @@ Consider implementing client libraries for:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 See our [Contributing Guide](CONTRIBUTING.md) for API development guidelines.
 
 ---
 
-**Built with ❤️ using RFC 8188 encryption standards**
+**Built with using RFC 8188 encryption standards**

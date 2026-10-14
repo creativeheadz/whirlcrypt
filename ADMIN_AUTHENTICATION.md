@@ -1,10 +1,10 @@
-# 🔐 Whirlcrypt Admin Authentication System
+# Whirlcrypt Admin Authentication System
 
 ## Overview
 
 Whirlcrypt now includes a comprehensive admin authentication system with multi-factor authentication (MFA), JWT-based sessions, and a command-line interface for user management.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Create Initial Admin User
 ```bash
@@ -30,7 +30,7 @@ curl -X POST http://localhost:3001/api/admin/auth/login \
   -d '{"username": "admin", "password": "whirlcrypt123!"}'
 ```
 
-## 🔑 Authentication Flow
+## Authentication Flow
 
 ### Without MFA
 1. **Login**: POST `/api/admin/auth/login` with username/password
@@ -43,7 +43,7 @@ curl -X POST http://localhost:3001/api/admin/auth/login \
 3. **Verify**: POST `/api/admin/auth/mfa/verify` with challenge token and TOTP code
 4. **Response**: Full JWT token with 24-hour expiration
 
-## 🛡️ Security Features
+## Security Features
 
 ### JWT Tokens
 - **Algorithm**: HS256 with configurable secret
@@ -69,7 +69,7 @@ curl -X POST http://localhost:3001/api/admin/auth/login \
 - **Success/Failure**: Detailed error tracking
 - **Database Storage**: Persistent audit trail
 
-## 🔧 CLI User Management
+## CLI User Management
 
 ### Available Commands
 ```bash
@@ -98,7 +98,7 @@ npm run admin -- interactive
 npm run admin -- audit-log
 ```
 
-## 🌐 API Endpoints
+## API Endpoints
 
 ### Authentication
 - `POST /api/admin/auth/login` - Initial login
@@ -116,7 +116,7 @@ npm run admin -- audit-log
 - `GET /api/admin/config` - View configuration
 - `PUT /api/admin/config` - Update configuration
 
-## 🗄️ Database Schema
+## Database Schema
 
 ### Admin Users Table
 ```sql
@@ -165,7 +165,7 @@ CREATE TABLE admin_audit_log (
 );
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 ```bash
@@ -189,7 +189,7 @@ DB_PASSWORD=whirlcrypt_password
 5. **Network Security**: Use HTTPS in production
 6. **Database Security**: Secure PostgreSQL installation
 
-## 🚨 Security Warnings
+## Security Warnings
 
 ### Critical Actions Required
 1. **Change default admin password immediately**
@@ -199,15 +199,15 @@ DB_PASSWORD=whirlcrypt_password
 5. **Regularly review audit logs**
 
 ### Current Status
-- ✅ Admin endpoints are now protected
-- ✅ JWT-based authentication implemented
-- ✅ MFA support with TOTP and backup codes
-- ✅ Rate limiting on authentication endpoints
-- ✅ Comprehensive audit logging
-- ✅ CLI user management tools
-- ✅ Session management and tracking
+- Admin endpoints are now protected
+- JWT-based authentication implemented
+- MFA support with TOTP and backup codes
+- Rate limiting on authentication endpoints
+- Comprehensive audit logging
+- CLI user management tools
+- Session management and tracking
 
-## 🔍 Testing Authentication
+## Testing Authentication
 
 ### Test Login
 ```bash
@@ -227,7 +227,7 @@ curl -H "Authorization: Bearer <your-token>" \
 curl http://localhost:3001/api/admin/stats
 ```
 
-## 📝 Next Steps
+## Next Steps
 
 1. **Production Deployment**: Configure HTTPS and secure environment
 2. **User Interface**: Build web-based admin panel
@@ -237,4 +237,4 @@ curl http://localhost:3001/api/admin/stats
 
 ---
 
-**⚠️ IMPORTANT**: This system provides enterprise-grade security for your Whirlcrypt installation. All admin endpoints are now protected and require proper authentication.
+**IMPORTANT**: This system provides enterprise-grade security for your Whirlcrypt installation. All admin endpoints are now protected and require proper authentication.

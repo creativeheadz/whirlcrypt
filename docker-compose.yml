@@ -1,20 +1,18 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
+  # Set DB_PASSWORD in the environment for production. The database port is
+  # intentionally NOT published: reach it via `docker compose exec postgres`.
   postgres:
     image: postgres:15-alpine
     container_name: whirlcrypt-postgres
     environment:
       POSTGRES_DB: whirlcrypt
       POSTGRES_USER: whirlcrypt_user
-      POSTGRES_PASSWORD: whirlcrypt_password
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-whirlcrypt_dev_only}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U whirlcrypt_user -d whirlcrypt"]
       interval: 10s
@@ -25,14 +23,13 @@ services:
       - whirlcrypt
 
   # Redis for caching and sessions
+  # Port intentionally NOT published: reach it via `docker compose exec redis`.
   redis:
     image: redis:7-alpine
     container_name: whirlcrypt-redis
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -47,22 +44,32 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        COMMIT_HASH: ${COMMIT_HASH:-unknown}
     container_name: whirlcrypt-app
     environment:
       # Server Configuration
       NODE_ENV: production
       PORT: 3001
       
-      # Database Configuration
+      # Database Configuration (DB_SSL=false is acceptable: traffic stays
+      # on the internal compose network; the port is not published)
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: whirlcrypt
       DB_USER: whirlcrypt_user
-      DB_PASSWORD: whirlcrypt_password
+      DB_PASSWORD: ${DB_PASSWORD:-whirlcrypt_dev_only}
       DB_POOL_MAX: 20
       DB_IDLE_TIMEOUT: 30000
       DB_CONNECTION_TIMEOUT: 10000
       DB_SSL: false
+
+      # Secrets: REQUIRED in production (the app refuses to boot on the
+      # dev-only defaults). Generate with:
+      # node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+      JWT_SECRET: ${JWT_SECRET:-whirlcrypt-jwt-secret-change-in-production}
+      JWT_EXPIRES_IN: 24h
+      METADATA_ENCRYPTION_KEY: ${METADATA_ENCRYPTION_KEY:-whirlcrypt-metadata-master-key-change-in-production-32-bytes!!}
       
       # Redis Configuration (optional)
       REDIS_HOST: redis
@@ -73,8 +80,8 @@ services:
       STORAGE_PROVIDER: local
       UPLOAD_DIR: /app/uploads
       
-      # Security Configuration
-      CORS_ORIGIN: "*"
+      # Security Configuration (set CORS_ORIGIN to your public domain)
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       
       # File Configuration
       DEFAULT_RETENTION_HOURS: 24

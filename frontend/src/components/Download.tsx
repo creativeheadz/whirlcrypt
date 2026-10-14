@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import { Download as DownloadIcon, AlertCircle, CheckCircle2, Lock, KeyRound, Fingerprint, ShieldAlert } from 'lucide-react'
 import { ClientCrypto, EnvelopeMetadata } from '../crypto/rfc8188'
@@ -52,7 +52,12 @@ const Download: React.FC = () => {
     downloaded: false,
   })
 
+  // Links are single-parse: the fragment is scrubbed after reading, so an
+  // effect re-run (StrictMode) must not wipe keys with a spurious error.
+  const parsedForId = useRef<string | null>(null)
   useEffect(() => {
+    if (parsedForId.current === id) return
+    parsedForId.current = id ?? null
     const parsed = ClientCrypto.extractKeysFromUrl()
     if (!parsed) {
       setState(prev => ({
@@ -61,6 +66,9 @@ const Download: React.FC = () => {
       }))
       return
     }
+    // Keys are now in component state: drop them from the URL so they don't
+    // linger in history, tab titles, or shoulder-surfed address bars.
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
     setState(prev => ({
       ...prev,
       keyOrWrapped: parsed.keyOrWrapped,
@@ -171,7 +179,7 @@ const Download: React.FC = () => {
             } else {
               const filename = metadata?.filename ?? `decrypted-file-${id?.substring(0, 8)}`
               const contentType = metadata?.contentType || 'application/octet-stream'
-              const finalBlob = new Blob(blobParts, { type: contentType })
+              const finalBlob = new Blob(blobParts as BlobPart[], { type: contentType })
               const url = URL.createObjectURL(finalBlob)
               const a = document.createElement('a')
               a.href = url

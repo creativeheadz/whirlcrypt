@@ -34,7 +34,7 @@ export class StorageManager {
         throw new Error(`Unsupported storage provider: ${providerType}`);
     }
 
-    console.log(`✅ Storage initialized with provider: ${providerType}`);
+    console.log(`Storage initialized with provider: ${providerType}`);
   }
 
   getProvider(name?: string): StorageProvider {

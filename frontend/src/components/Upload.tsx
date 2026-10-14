@@ -6,6 +6,7 @@ import { loadOrCreateSenderIdentity, loadSenderIdentity, signAttestation, finger
 import JSZip from 'jszip'
 import axios from 'axios'
 import { useToast } from '../contexts/ToastContext'
+import { DEFAULT_LIMITS, resolveServerLimits, ServerLimits } from '../utils/limits'
 
 type UploadPhase = 'idle' | 'compressing' | 'encrypting' | 'awaiting-server' | 'done'
 
@@ -49,6 +50,7 @@ interface UploadState {
   myFingerprint: string | null
   isFolder: boolean
   folderName: string | null
+  limits: ServerLimits
 }
 
 const UploadPage: React.FC = () => {
@@ -70,6 +72,7 @@ const UploadPage: React.FC = () => {
     myFingerprint: null,
     isFolder: false,
     folderName: null,
+    limits: DEFAULT_LIMITS,
   })
 
   // If a sender identity already exists in localStorage, surface its
@@ -82,6 +85,21 @@ const UploadPage: React.FC = () => {
         if (!cancelled) setState(prev => ({ ...prev, myFingerprint: fp }))
       }
     })
+    return () => { cancelled = true }
+  }, [])
+  // Learn the real server limits so size checks match what the backend (and
+  // nginx) will actually accept. Silent fallback to documented defaults.
+  useEffect(() => {
+    let cancelled = false
+    axios.get('/api/config').then((res) => {
+      if (cancelled) return
+      const limits = resolveServerLimits(res.data)
+      setState(prev => ({
+        ...prev,
+        limits,
+        retentionHours: Math.min(prev.retentionHours, limits.maxRetentionHours),
+      }))
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [])
   const [copied, setCopied] = useState(false)
@@ -100,8 +118,8 @@ const UploadPage: React.FC = () => {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const totalSize = calculateTotalSize(acceptedFiles)
-      if (totalSize > 4294967296) {
-        showError('Files too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`)
+      if (totalSize > state.limits.maxFileSize) {
+        showError('Files too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: ${formatFileSize(state.limits.maxFileSize)}`)
         return
       }
       const isFolder = acceptedFiles.some(f => f.webkitRelativePath)
@@ -112,18 +130,18 @@ const UploadPage: React.FC = () => {
         setState(prev => ({ ...prev, file: acceptedFiles[0], files: null, isFolder: false, folderName: null, error: null, shareUrl: null }))
       }
     }
-  }, [])
+  }, [state.limits.maxFileSize])
 
   const { getRootProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
-    maxSize: 4294967296,
+    maxSize: state.limits.maxFileSize,
     disabled: state.file !== null || state.files !== null || state.uploading,
     noClick: true,
     onDropRejected: (rejectedFiles) => {
       const rejection = rejectedFiles[0]?.errors[0]
       let errorMsg = 'Files rejected'
-      if (rejection?.code === 'file-too-large') errorMsg = 'One or more files too large (max 4GB per file)'
+      if (rejection?.code === 'file-too-large') errorMsg = `One or more files too large (max ${formatFileSize(state.limits.maxFileSize)} per file)`
       else if (rejection?.code === 'too-many-files') errorMsg = 'Too many files selected'
       showError('Upload error', errorMsg)
     },
@@ -133,8 +151,8 @@ const UploadPage: React.FC = () => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
     const totalSize = calculateTotalSize(files)
-    if (totalSize > 4294967296) {
-      showError('Files too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`)
+    if (totalSize > state.limits.maxFileSize) {
+      showError('Files too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: ${formatFileSize(state.limits.maxFileSize)}`)
       return
     }
     if (files.length === 1) {
@@ -149,8 +167,8 @@ const UploadPage: React.FC = () => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
     const totalSize = calculateTotalSize(files)
-    if (totalSize > 4294967296) {
-      showError('Folder too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: 4GB`)
+    if (totalSize > state.limits.maxFileSize) {
+      showError('Folder too large', `Total size is ${formatFileSize(totalSize)}. Maximum allowed: ${formatFileSize(state.limits.maxFileSize)}`)
       return
     }
     const folderName = extractFolderName(files)
@@ -355,7 +373,7 @@ const UploadPage: React.FC = () => {
     { value: 24, label: '24 hours' },
     { value: 72, label: '3 days' },
     { value: 168, label: '7 days' },
-  ]
+  ].filter(opt => opt.value <= state.limits.maxRetentionHours)
 
   const hasSelection = !!(state.file || state.files)
 
@@ -447,7 +465,7 @@ const UploadPage: React.FC = () => {
                   />
                 </label>
               </div>
-              <div className="folio text-ink-faint">Max 4 GB total</div>
+              <div className="folio text-ink-faint">Max {formatFileSize(state.limits.maxFileSize)} total</div>
             </div>
           )}
         </div>
@@ -686,7 +704,7 @@ const UploadPage: React.FC = () => {
             <dt>Expiry</dt>          <dd>Auto-purge after retention window</dd>
             <dt>Tracking</dt>        <dd>None. No analytics, no ads.</dd>
             <dt>Source</dt>          <dd>Open, MIT licence</dd>
-            <dt>Limit</dt>           <dd>4 GB per upload</dd>
+            <dt>Limit</dt>           <dd>{formatFileSize(state.limits.maxFileSize)} per upload</dd>
           </dl>
         </div>
       </section>
