@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Sun, Moon, Github } from 'lucide-react'
+import { Sun, Moon, CodeXml } from 'lucide-react'
 import Logo from './Logo'
 import { useTheme } from '../hooks/useTheme'
 
@@ -88,7 +88,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 aria-label="Source on GitHub"
                 className="p-2 text-ink-faint hover:text-ember transition-colors"
               >
-                <Github className="h-4 w-4" />
+                <CodeXml className="h-4 w-4" />
               </a>
             </nav>
           </div>
