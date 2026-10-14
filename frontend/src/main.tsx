@@ -3,15 +3,14 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
-import axios from 'axios'
+import axios, { AxiosHeaders } from 'axios'
 import { ToastProvider } from './contexts/ToastContext'
 
 // Attach admin token to all API requests and handle token refresh
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('adminToken')
   if (token) {
-    config.headers = config.headers || {}
-    config.headers['Authorization'] = `Bearer ${token}`
+    config.headers = new AxiosHeaders(config.headers).set('Authorization', `Bearer ${token}`)
   }
   return config
 })
